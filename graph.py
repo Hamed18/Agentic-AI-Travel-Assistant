@@ -1,4 +1,5 @@
 import psycopg
+from psycopg_pool import ConnectionPool
 
 from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.graph import END, START, StateGraph
@@ -118,27 +119,29 @@ def build_graph():
     graph.add_edge("human_approval", "final_response")
     graph.add_edge("final_response", END)
 
-    # PostgreSQL checkpointer
+    # PostgreSQL checkpointer with auto-reconnecting ConnectionPool
+    # (Resilient to serverless Neon SSL connection drops)
     if DATABASE_URL:
-        # IMPORTANT:
-        # CREATE INDEX CONCURRENTLY cannot run inside
-        # a PostgreSQL transaction.
-        #
-        # autocommit=True allows LangGraph's setup()
-        # migrations to execute correctly.
-        conn = psycopg.connect(
-            DATABASE_URL,
-            autocommit=True,
-        )
+        try:
+            pool = ConnectionPool(
+                DATABASE_URL,
+                min_size=1,
+                max_size=10,
+                max_idle=120.0,
+                check=ConnectionPool.check_connection,
+                kwargs={"autocommit": True},
+            )
+            pool.open()
 
-        checkpointer = PostgresSaver(conn)
+            checkpointer = PostgresSaver(pool)
+            checkpointer.setup()
 
-        # Create/update LangGraph checkpoint tables and indexes
-        checkpointer.setup()
-
-        return graph.compile(
-            checkpointer=checkpointer
-        )
+            return graph.compile(
+                checkpointer=checkpointer
+            )
+        except Exception as e:
+            print(f"Warning: Could not connect to PostgreSQL checkpointer ({e}). Compiling in-memory.")
+            return graph.compile()
 
     # If no DATABASE_URL is configured,
     # compile without persistent memory.
@@ -146,4 +149,3 @@ def build_graph():
 
 
 app = build_graph()
-
