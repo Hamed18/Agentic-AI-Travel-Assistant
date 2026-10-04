@@ -1,29 +1,5 @@
 # Build a Multi-Agent Travel Planning System using LangGraph + MCP | Supervisor Agent + Guardrails + Human-in-the-Loop
 
-
-This project extends the Multi-Agent Travel Planning System built in Part 1 and Part 2 by integrating Supervisor Agent + Guardrails + Human-in-the-Loop
-
-## Part 1 of This Project
-
-**GitHub Repository:**  
-https://github.com/codewithaarohi/AI-Travel-Planning-System-using-LangGraph
-
-**Video Tutorial:**  
-Build a Real-World Multi-Agent AI System using LangGraph | Multi-Agent AI + Memory + APIs  
-https://youtu.be/ctHby5vhDqg
-
-
-
-
-## Part 2 of This Project
-
-**GitHub Repository:**  
-https://github.com/codewithaarohi/AI-Travel-Planning-App-using-LangGraph-and-MCP
-
-**Video Tutorial:**  
-Build a Real-World Multi-Agent AI System using LangGraph | Multi-Agent AI + Memory + MCP  
-https://youtu.be/DjMX7o2EeV0
-
 ---
 
 # Requirements
