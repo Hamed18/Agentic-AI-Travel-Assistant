@@ -291,8 +291,8 @@ Airline MCP data:
 {str(airlines)[:3000]}
 
 Include likely departure/arrival airports, relevant airlines,
-estimated duration, fare range, peak season warning,
-and booking advice.
+estimated duration, fare range (default to USD $ unless user specified another currency),
+peak season warning, and booking advice.
 """
 
     result = _llm_text(
@@ -402,14 +402,14 @@ Weather results:
 {state.get('weather_results', '')}
 
 Return a concise budget assessment with:
-1. estimated cost categories
+1. estimated cost categories (in USD $ by default, or the currency requested by the user)
 2. risk areas
 3. money-saving suggestions
 4. whether the plan seems feasible
 """
 
     result = _llm_text(
-        "You are a practical travel budget analyst.",
+        "You are a practical travel budget analyst. Default to USD ($) unless the user specifically requested another currency.",
         prompt,
     )
 
@@ -466,10 +466,11 @@ Budget results:
 {state.get('budget_results', '')}
 
 Make the output structured, practical, and ready for human review.
+Format all estimated costs and budgets in USD ($) by default, or the currency specifically requested by the user.
 """
 
     result = _llm_text(
-        "You are an expert itinerary planner.",
+        "You are an expert itinerary planner. Default all pricing to USD ($) unless the user specified another currency.",
         prompt,
     )
 
