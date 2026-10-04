@@ -1,0 +1,30 @@
+# Environment variables - NEVER commit this
+.env
+
+# Python virtual environments
+.venv/
+venv/
+env/
+aviationstack-mcp/.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+
+# LangGraph / SQLite local memory
+*.db
+*.sqlite
+
+# Streamlit local config
+.streamlit/secrets.toml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
