@@ -107,4 +107,3 @@ yarl==1.24.2
 zstandard==0.25.0
 fpdf2
 markdown
-aviationstack-mcp

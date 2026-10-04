@@ -1,17 +1,15 @@
 import os
-
+import sys
 from langchain_mcp_adapters.client import MultiServerMCPClient
-
 from config import (
     AVIATION_STACK_API_KEY,
     OPENWEATHER_API_KEY,
     TAVILY_API_KEY,
 )
-import sys
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+AVIATIONSTACK_SERVER_PATH = os.path.join(BASE_DIR, "aviationstack_mcp_server.py")
 WEATHER_SERVER_PATH = os.path.join(BASE_DIR, "weather_mcp_server.py")
-
 
 # Create MCP Client
 client = MultiServerMCPClient(
@@ -20,15 +18,11 @@ client = MultiServerMCPClient(
             "transport": "streamable_http",
             "url": f"https://mcp.tavily.com/mcp/?tavilyApiKey={TAVILY_API_KEY}"
         },
-
         "aviationstack": {
             "transport": "stdio",
             "command": sys.executable,
             "args": [
-                "-m",
-                "aviationstack_mcp",
-                "mcp",
-                "run"
+                AVIATIONSTACK_SERVER_PATH
             ],
             "env": {
                 "AVIATION_STACK_API_KEY": AVIATION_STACK_API_KEY
@@ -44,15 +38,11 @@ client = MultiServerMCPClient(
                 "OPENWEATHER_API_KEY": OPENWEATHER_API_KEY
             }
         }
-
-
     }
 )
 
-
 # Cache tools so we don't load them repeatedly
 _tools_cache = None
-
 
 async def get_tools():
     global _tools_cache
@@ -60,7 +50,6 @@ async def get_tools():
     if _tools_cache is None:
         try:
             _tools_cache = await client.get_tools()
-
         except Exception as e:
             print("\n========== FULL ERROR ==========")
             print(type(e))
@@ -90,28 +79,21 @@ async def call_tool(tool_name: str, args: dict = None):
 
     return await tool.ainvoke(args or {})
 
-
 # ------------------------
-# Tavily MCP Tools
+# Tool Wrappers
 # ------------------------
-
-
 
 async def tavily_search(query: str):
     return await call_tool("tavily_search", {"query": query})
 
-
 async def list_airports(search: str = "", limit: int = 10):
     return await call_tool("list_airports", {"search": search, "limit": limit, "offset": 0})
-
 
 async def list_airlines(search: str = "", limit: int = 10):
     return await call_tool("list_airlines", {"search": search, "limit": limit, "offset": 0})
 
-
 async def current_weather(city: str):
     return await call_tool("get_current_weather", {"city": city})
-
 
 async def forecast(city: str):
     return await call_tool("get_forecast", {"city": city})
