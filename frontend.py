@@ -576,25 +576,42 @@ if st.session_state.get("waiting_for_approval"):
         feedback = st.text_area("Revision Feedback (optional):", disabled=(approved == "Yes, generate final plan"), placeholder="e.g. Please choose 4-star hotels instead or add a day trip...")
 
         if st.button("Submit Decision & Polish Plan", type="primary"):
-            with st.spinner("Polishing final travel plan with your feedback..."):
-                final_result = app.invoke(
+            is_approved = (approved == "Yes, generate final plan")
+
+            if not is_approved:
+                user_fb = feedback.strip() if feedback.strip() else "Requested revision."
+                st.session_state.chat_history.append({
+                    "role": "user",
+                    "type": "text",
+                    "content": f"📝 **Revision Requested:** {user_fb}"
+                })
+
+            with st.spinner("Processing decision and updating travel plan..." if not is_approved else "Polishing final travel plan..."):
+                resumed_result = app.invoke(
                     Command(
                         resume={
-                            "approved": (approved == "Yes, generate final plan"),
+                            "approved": is_approved,
                             "feedback": feedback,
                         }
                     ),
                     config=config,
                 )
-            
-            st.session_state.waiting_for_approval = False
-            
-            if final_result and final_result.get("final_response"):
+
+            if "__interrupt__" in resumed_result:
                 st.session_state.chat_history.append({
                     "role": "assistant",
-                    "type": "final_plan",
-                    "content": f"### 🌟 Final Polished Travel Plan\n\n{final_result['final_response']}"
+                    "type": "draft_plan",
+                    "content": resumed_result
                 })
+                st.session_state.waiting_for_approval = True
+            else:
+                st.session_state.waiting_for_approval = False
+                if resumed_result and resumed_result.get("final_response"):
+                    st.session_state.chat_history.append({
+                        "role": "assistant",
+                        "type": "final_plan",
+                        "content": f"### 🌟 Final Polished Travel Plan\n\n{resumed_result['final_response']}"
+                    })
             st.rerun()
 
 # --- True Fixed Bottom Footer (Sits at the very bottom, below user query box) ---

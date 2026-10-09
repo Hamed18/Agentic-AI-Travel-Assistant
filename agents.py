@@ -442,7 +442,23 @@ def itinerary_agent(state: TravelState):
 
     print("\nBudget Results:")
     print(state.get("budget_results"))
+
+    print("\nHuman Feedback (Revision):")
+    print(state.get("human_feedback"))
     print("===========================================\n")
+
+    revision_context = ""
+    if state.get("human_feedback") and not state.get("approved", False):
+        revision_context = f"""
+IMPORTANT USER REVISION FEEDBACK:
+The user reviewed the previous draft and asked for these specific revisions:
+"{state.get('human_feedback')}"
+
+Previous Draft Itinerary to Modify:
+{state.get('itinerary', '')}
+
+Please update the draft itinerary to carefully reflect all of the user's requested changes while keeping the rest of the plan intact and realistic.
+"""
 
     prompt = f"""
 Create a clear draft travel itinerary.
@@ -464,6 +480,8 @@ Weather results:
 
 Budget results:
 {state.get('budget_results', '')}
+
+{revision_context}
 
 Make the output structured, practical, and ready for human review.
 Format all estimated costs and budgets in USD ($) by default, or the currency specifically requested by the user.

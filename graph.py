@@ -66,6 +66,12 @@ def route_after_agent(current_agent: str):
     return route
 
 
+def route_after_human_approval(state: TravelState) -> str:
+    if state.get("approved"):
+        return "final_response"
+    return "itinerary_agent"
+
+
 def build_graph():
     graph = StateGraph(TravelState)
 
@@ -114,9 +120,21 @@ def build_graph():
         ROUTE_MAP,
     )
 
-    # Itinerary -> Human approval -> Final response
+    # Itinerary -> Human approval
     graph.add_edge("itinerary_agent", "human_approval")
-    graph.add_edge("human_approval", "final_response")
+
+    # Conditional routing from Human approval:
+    # If approved -> final_response -> END
+    # If rejected with feedback -> loop back to itinerary_agent for revision
+    graph.add_conditional_edges(
+        "human_approval",
+        route_after_human_approval,
+        {
+            "final_response": "final_response",
+            "itinerary_agent": "itinerary_agent",
+        },
+    )
+
     graph.add_edge("final_response", END)
 
     # PostgreSQL checkpointer with auto-reconnecting ConnectionPool
