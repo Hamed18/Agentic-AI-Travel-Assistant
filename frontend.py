@@ -40,25 +40,24 @@ if "all_threads" not in st.session_state:
 st.markdown(
     """
     <style>
-    /* ════════════════════════════════════════
-       0. FORCE DARK THEME — overrides Streamlit
-          light/dark native theme completely
-       ════════════════════════════════════════ */
+    /* ══════════════════════════════════════════════
+       0. FORCE DARK THEME ON EVERY STREAMLIT ELEMENT
+       ══════════════════════════════════════════════ */
     html, body, .stApp,
     [data-testid="stAppViewContainer"],
     [data-testid="stAppViewBlockContainer"],
     [data-testid="stMain"],
     [data-testid="stMainBlockContainer"],
-    .main {
+    .main, .block-container {
         background-color: #090d16 !important;
         color: #e2e8f0 !important;
     }
     .stApp > header,
     [data-testid="stHeader"] { background: transparent !important; }
 
-    /* ════════════════════════════════════════
+    /* ══════════════════════════════════════════════
        1. GLOBAL LAYOUT
-       ════════════════════════════════════════ */
+       ══════════════════════════════════════════════ */
     .block-container {
         max-width: 1100px;
         padding-top: 2rem;
@@ -67,9 +66,9 @@ st.markdown(
         padding-right: 1.5rem;
     }
 
-    /* ════════════════════════════════════════
+    /* ══════════════════════════════════════════════
        2. HERO SECTION
-       ════════════════════════════════════════ */
+       ══════════════════════════════════════════════ */
     .hero-container {
         background: linear-gradient(160deg, rgba(16,24,48,0.92) 0%, rgba(9,13,22,0.97) 100%),
                     url('https://images.unsplash.com/photo-1436491865332-7a61a109cc05?q=80&w=1600&auto=format&fit=crop');
@@ -94,7 +93,6 @@ st.markdown(
         letter-spacing: 0.06em;
         margin-bottom: 1.1rem;
         text-transform: uppercase;
-        backdrop-filter: blur(8px);
     }
     .hero-title {
         font-size: 2.4rem;
@@ -114,9 +112,9 @@ st.markdown(
         font-weight: 400;
     }
 
-    /* ════════════════════════════════════════
+    /* ══════════════════════════════════════════════
        3. SECTION LABELS
-       ════════════════════════════════════════ */
+       ══════════════════════════════════════════════ */
     .section-label {
         font-size: 0.82rem !important;
         font-weight: 800 !important;
@@ -129,30 +127,68 @@ st.markdown(
         gap: 0.45rem !important;
     }
 
-    /* ════════════════════════════════════════
-       4. DESTINATION CARDS
-          Scoped to .dest-grid wrapper only
-       ════════════════════════════════════════ */
-    .dest-grid div[data-testid="stHorizontalBlock"] {
+    /* ══════════════════════════════════════════════
+       4. ALL MAIN-AREA BUTTONS — UNIVERSAL DARK FIX
+          This is the KEY selector that actually works.
+          Targets every stButton in the main content,
+          excluding the sidebar.
+       ══════════════════════════════════════════════ */
+    section.main .stButton > button,
+    [data-testid="stMain"] .stButton > button,
+    .block-container .stButton > button {
+        background-color: #1a2540 !important;
+        color: #e2e8f0 !important;
+        border: 1px solid #2d3f5e !important;
+        border-radius: 12px !important;
+        font-weight: 600 !important;
+        font-size: 0.93rem !important;
+        transition: all 0.22s ease !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.35) !important;
+    }
+    section.main .stButton > button:hover,
+    [data-testid="stMain"] .stButton > button:hover,
+    .block-container .stButton > button:hover {
+        background-color: #1e3a5f !important;
+        color: #93c5fd !important;
+        border-color: #3b82f6 !important;
+        box-shadow: 0 6px 20px rgba(59,130,246,0.25) !important;
+        transform: translateY(-2px) !important;
+    }
+    section.main .stButton > button:focus,
+    section.main .stButton > button:active,
+    [data-testid="stMain"] .stButton > button:focus,
+    [data-testid="stMain"] .stButton > button:active {
+        background-color: #1e3a5f !important;
+        color: #93c5fd !important;
+        border-color: #3b82f6 !important;
+        outline: none !important;
+        box-shadow: 0 6px 20px rgba(59,130,246,0.25) !important;
+    }
+
+    /* ══════════════════════════════════════════════
+       5. DESTINATION CARD IMAGES
+          Lock uniform image height across all 5 cards
+       ══════════════════════════════════════════════ */
+    div[data-testid="stHorizontalBlock"] {
         align-items: stretch !important;
         gap: 0.6rem !important;
     }
-    .dest-grid div[data-testid="column"] {
+    div[data-testid="column"] {
         display: flex !important;
         flex-direction: column !important;
-        padding: 0 !important;
-        background: #131b2e !important;
+        background: #111827 !important;
         border-radius: 16px !important;
         overflow: hidden !important;
         border: 1px solid #1e293b !important;
         transition: box-shadow 0.25s ease, transform 0.25s ease !important;
         min-width: 0 !important;
+        padding: 0 !important;
     }
-    .dest-grid div[data-testid="column"]:hover {
+    div[data-testid="column"]:hover {
         box-shadow: 0 8px 28px rgba(59,130,246,0.22) !important;
         transform: translateY(-3px) !important;
     }
-    .dest-grid div[data-testid="column"] div[data-testid="stImage"] {
+    div[data-testid="column"] div[data-testid="stImage"] {
         height: 130px !important;
         max-height: 130px !important;
         min-height: 130px !important;
@@ -162,7 +198,7 @@ st.markdown(
         padding: 0 !important;
         flex-shrink: 0 !important;
     }
-    .dest-grid div[data-testid="column"] div[data-testid="stImage"] img {
+    div[data-testid="column"] div[data-testid="stImage"] img {
         height: 130px !important;
         max-height: 130px !important;
         min-height: 130px !important;
@@ -174,104 +210,48 @@ st.markdown(
         margin: 0 !important;
         padding: 0 !important;
     }
-    .dest-grid div[data-testid="column"] .stButton {
+    div[data-testid="column"] .stButton {
         margin: 0 !important;
         padding: 0 !important;
         flex: 1 !important;
     }
-    .dest-grid div[data-testid="column"] .stButton > button {
-        background-color: #131b2e !important;
-        color: #e2e8f0 !important;
-        border: none !important;
+    /* Card label buttons - seamless bottom of card */
+    div[data-testid="column"] .stButton > button {
+        border-radius: 0 0 14px 14px !important;
         border-top: 1px solid #1e293b !important;
-        border-radius: 0 !important;
-        padding: 0.65rem 0.5rem !important;
-        font-weight: 700 !important;
-        font-size: 0.92rem !important;
+        border-left: none !important;
+        border-right: none !important;
+        border-bottom: none !important;
+        background-color: #111827 !important;
         height: 44px !important;
         min-height: 44px !important;
         max-height: 44px !important;
         width: 100% !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        cursor: pointer !important;
-        transition: background 0.2s ease, color 0.2s ease !important;
-    }
-    .dest-grid div[data-testid="column"] .stButton > button:hover,
-    .dest-grid div[data-testid="column"] .stButton > button:focus,
-    .dest-grid div[data-testid="column"] .stButton > button:active {
-        background-color: #1e3a5f !important;
-        color: #60a5fa !important;
-        outline: none !important;
-        box-shadow: none !important;
-    }
-
-    /* ════════════════════════════════════════
-       5. STARTER PROMPT BUTTONS
-          Strategy: target ALL buttons that are NOT
-          inside the destination card columns.
-          We use a data-key attribute approach via
-          key= prefix "start_" on those buttons.
-       ════════════════════════════════════════ */
-
-    /* Spacing above "Describe Your Trip" section */
-    div[data-testid="stHorizontalBlock"] + div > .section-label,
-    .section-label + div[data-testid="stHorizontalBlock"] {
-        margin-top: 1.5rem !important;
-    }
-
-    /* Scoped to .starter-grid wrapper */
-    .starter-grid div[data-testid="column"] {
-        background: transparent !important;
-        border: none !important;
-        border-radius: 0 !important;
-        overflow: visible !important;
-    }
-    .starter-grid div[data-testid="column"]:hover {
-        box-shadow: none !important;
+        font-weight: 700 !important;
         transform: none !important;
     }
-    .starter-grid .stButton > button {
-        background: linear-gradient(135deg, #1e293b 0%, #131b2e 100%) !important;
-        color: #e2e8f0 !important;
-        border: 1px solid #334155 !important;
-        border-radius: 14px !important;
-        padding: 0.85rem 1rem !important;
-        font-size: 0.93rem !important;
-        font-weight: 600 !important;
-        height: 56px !important;
-        min-height: 56px !important;
-        text-align: center !important;
-        transition: all 0.22s ease !important;
-        width: 100% !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
-    }
-    .starter-grid .stButton > button:hover,
-    .starter-grid .stButton > button:focus,
-    .starter-grid .stButton > button:active {
-        background: linear-gradient(135deg, #1e3a5f 0%, #1e293b 100%) !important;
+    div[data-testid="column"] .stButton > button:hover {
+        background-color: #1e3a5f !important;
+        transform: none !important;
         border-color: #3b82f6 !important;
-        color: #93c5fd !important;
-        transform: translateY(-2px) !important;
-        box-shadow: 0 6px 20px rgba(59,130,246,0.25) !important;
-        outline: none !important;
     }
 
-    /* ════════════════════════════════════════
+    /* ══════════════════════════════════════════════
        6. CHAT INPUT
-       ════════════════════════════════════════ */
+       ══════════════════════════════════════════════ */
     div[data-testid="stBottom"] {
         bottom: 28px !important;
         background: transparent !important;
     }
-    div[data-testid="stChatInput"] {
+    div[data-testid="stChatInput"],
+    [data-testid="stChatInput"] {
         background-color: #0d1322 !important;
         border: 1px solid #334155 !important;
         border-radius: 16px !important;
         box-shadow: 0 10px 30px rgba(0,0,0,0.6) !important;
     }
-    div[data-testid="stChatInput"] textarea {
+    div[data-testid="stChatInput"] textarea,
+    [data-testid="stChatInput"] textarea {
         background: transparent !important;
         color: #f1f5f9 !important;
         font-size: 0.98rem !important;
@@ -281,9 +261,9 @@ st.markdown(
         color: #475569 !important;
     }
 
-    /* ════════════════════════════════════════
-       7. FIXED BOTTOM FOOTER (below chat input)
-       ════════════════════════════════════════ */
+    /* ══════════════════════════════════════════════
+       7. FIXED BOTTOM FOOTER
+       ══════════════════════════════════════════════ */
     .bottom-fixed-footer {
         position: fixed !important;
         bottom: 0 !important;
@@ -305,35 +285,46 @@ st.markdown(
     }
     .bottom-fixed-footer a:hover { text-decoration: underline !important; }
 
-    /* ════════════════════════════════════════
+    /* ══════════════════════════════════════════════
        8. SIDEBAR
-       ════════════════════════════════════════ */
+       ══════════════════════════════════════════════ */
     [data-testid="stSidebar"] {
         background-color: #0b0f1a !important;
         border-right: 1px solid #1e293b !important;
     }
     [data-testid="stSidebar"] * { color: #e2e8f0 !important; }
+    /* Sidebar history buttons */
     [data-testid="stSidebar"] .stButton > button {
         background-color: #1e293b !important;
         color: #e2e8f0 !important;
         border: 1px solid #334155 !important;
         border-radius: 8px !important;
         font-weight: 600 !important;
+        transform: none !important;
+        box-shadow: none !important;
     }
+    [data-testid="stSidebar"] .stButton > button:hover {
+        background-color: #1e3a5f !important;
+        border-color: #3b82f6 !important;
+        color: #93c5fd !important;
+        transform: none !important;
+    }
+    /* Sidebar New Chat primary button */
     [data-testid="stSidebar"] .stButton > button[kind="primary"] {
         background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
         color: #ffffff !important;
         border: none !important;
         box-shadow: 0 4px 12px rgba(37,99,235,0.4) !important;
     }
-    [data-testid="stSidebar"] .stButton > button:hover {
-        border-color: #3b82f6 !important;
-        color: #93c5fd !important;
+    [data-testid="stSidebar"] .stButton > button[kind="primary"]:hover {
+        background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+        box-shadow: 0 6px 18px rgba(37,99,235,0.5) !important;
+        color: #ffffff !important;
     }
 
-    /* ════════════════════════════════════════
-       9. CHAT MESSAGES
-       ════════════════════════════════════════ */
+    /* ══════════════════════════════════════════════
+       9. CHAT MESSAGES & EXPANDERS
+       ══════════════════════════════════════════════ */
     [data-testid="stChatMessage"] {
         background: #111827 !important;
         border: 1px solid #1e293b !important;
@@ -345,20 +336,19 @@ st.markdown(
     [data-testid="stChatMessage"] h2,
     [data-testid="stChatMessage"] h3,
     [data-testid="stChatMessage"] h4 { color: #e2e8f0 !important; }
-
-    /* ════════════════════════════════════════
-       10. GENERAL TEXT & COMPONENT OVERRIDES
-       ════════════════════════════════════════ */
-    h1, h2, h3, h4, h5, h6 { color: #f1f5f9 !important; }
-    p, li, label { color: #cbd5e1 !important; }
-    .stMarkdown p { color: #cbd5e1 !important; }
-    hr { border-color: #1e293b !important; }
     [data-testid="stExpander"] {
         background: #111827 !important;
         border: 1px solid #1e293b !important;
         border-radius: 12px !important;
     }
-    /* Radio buttons & feedback widgets */
+
+    /* ══════════════════════════════════════════════
+       10. GENERAL TEXT & INPUT OVERRIDES
+       ══════════════════════════════════════════════ */
+    h1, h2, h3, h4, h5, h6 { color: #f1f5f9 !important; }
+    p, li, label { color: #cbd5e1 !important; }
+    .stMarkdown p { color: #cbd5e1 !important; }
+    hr { border-color: #1e293b !important; }
     [data-testid="stRadio"] label { color: #cbd5e1 !important; }
     [data-testid="stTextArea"] textarea {
         background: #0d1322 !important;
@@ -372,23 +362,29 @@ st.markdown(
         border: 1px solid #334155 !important;
         border-radius: 8px !important;
     }
+    /* Info/warning banners */
+    [data-testid="stInfo"] {
+        background: rgba(37,99,235,0.15) !important;
+        border: 1px solid rgba(96,165,250,0.3) !important;
+        color: #93c5fd !important;
+        border-radius: 10px !important;
+    }
 
-    /* ════════════════════════════════════════
+    /* ══════════════════════════════════════════════
        11. RESPONSIVE
-       ════════════════════════════════════════ */
+       ══════════════════════════════════════════════ */
     @media screen and (max-width: 900px) {
         .block-container { padding-left: 1rem; padding-right: 1rem; padding-bottom: 8rem !important; }
-        .hero-title { font-size: 1.9rem; }
+        .hero-title { font-size: 1.9rem !important; }
         div[data-testid="column"] div[data-testid="stImage"],
         div[data-testid="column"] div[data-testid="stImage"] img {
             height: 100px !important; max-height: 100px !important; min-height: 100px !important;
         }
-        div[data-testid="column"] .stButton > button { font-size: 0.82rem !important; height: 38px !important; min-height: 38px !important; }
-        .starter-btn .stButton > button { font-size: 0.85rem !important; height: 48px !important; min-height: 48px !important; }
+        div[data-testid="column"] .stButton > button { height: 38px !important; min-height: 38px !important; font-size: 0.82rem !important; }
     }
     @media screen and (max-width: 600px) {
-        .hero-title { font-size: 1.5rem; }
-        .hero-container { padding: 2rem 1rem 1.75rem 1rem; border-radius: 14px; }
+        .hero-title { font-size: 1.5rem !important; }
+        .hero-container { padding: 2rem 1rem 1.75rem 1rem !important; border-radius: 14px !important; }
         div[data-testid="column"] div[data-testid="stImage"],
         div[data-testid="column"] div[data-testid="stImage"] img {
             height: 85px !important; max-height: 85px !important; min-height: 85px !important;
@@ -474,7 +470,6 @@ st.markdown(
 
 # --- Popular Destinations Grid ---
 st.markdown('<div class="section-label">🌟 Popular Destinations</div>', unsafe_allow_html=True)
-st.markdown('<div class="dest-grid">', unsafe_allow_html=True)
 dest_col1, dest_col2, dest_col3, dest_col4, dest_col5 = st.columns(5)
 
 with dest_col1:
@@ -507,10 +502,8 @@ with dest_col5:
         st.session_state.trigger_query = "Plan a 4-day weekend trip to Dubai, UAE including desert safari and skyline hotels."
         st.rerun()
 
-st.markdown('</div>', unsafe_allow_html=True)  # close dest-grid
 
 # --- Describe Your Trip (Quick Prompt Starter Buttons) ---
-st.markdown('<div class="starter-grid">', unsafe_allow_html=True)
 st.markdown('<div class="section-label" style="margin-top:1.5rem;">🗺️ Describe Your Trip</div>', unsafe_allow_html=True)
 q_col1, q_col2, q_col3, q_col4 = st.columns(4)
 
@@ -534,7 +527,6 @@ with q_col4:
         st.session_state.trigger_query = "Plan a 10-day Bali backpacking trip focusing on budget villas, beaches, and weather."
         st.rerun()
 
-st.markdown('</div>', unsafe_allow_html=True)  # close starter-grid
 
 # --- Display Chat / Results History (Arrives on Top of the Bottom Query Box) ---
 if st.session_state.get("chat_history"):
