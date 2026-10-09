@@ -36,27 +36,42 @@ if "chat_history" not in st.session_state:
 if "all_threads" not in st.session_state:
     st.session_state.all_threads = []
 
-# --- Responsive Modern Dark UI CSS ---
+# --- Premium Dark UI CSS (theme-agnostic overrides) ---
 st.markdown(
     """
     <style>
-    /* Global layout & theme */
-    .stApp {
-        background: #090d16;
-        color: #e2e8f0;
+    /* ════════════════════════════════════════
+       0. FORCE DARK THEME — overrides Streamlit
+          light/dark native theme completely
+       ════════════════════════════════════════ */
+    html, body, .stApp,
+    [data-testid="stAppViewContainer"],
+    [data-testid="stAppViewBlockContainer"],
+    [data-testid="stMain"],
+    [data-testid="stMainBlockContainer"],
+    .main {
+        background-color: #090d16 !important;
+        color: #e2e8f0 !important;
     }
-    
+    .stApp > header,
+    [data-testid="stHeader"] { background: transparent !important; }
+
+    /* ════════════════════════════════════════
+       1. GLOBAL LAYOUT
+       ════════════════════════════════════════ */
     .block-container {
         max-width: 1100px;
         padding-top: 2rem;
-        padding-bottom: 8.5rem !important; /* Plenty of space above the sticky chat input */
+        padding-bottom: 9rem !important;
         padding-left: 1.5rem;
         padding-right: 1.5rem;
     }
-    
-    /* Hero Section Banner */
+
+    /* ════════════════════════════════════════
+       2. HERO SECTION
+       ════════════════════════════════════════ */
     .hero-container {
-        background: linear-gradient(180deg, rgba(16, 24, 40, 0.85) 0%, rgba(9, 13, 22, 0.95) 100%),
+        background: linear-gradient(160deg, rgba(16,24,48,0.92) 0%, rgba(9,13,22,0.97) 100%),
                     url('https://images.unsplash.com/photo-1436491865332-7a61a109cc05?q=80&w=1600&auto=format&fit=crop');
         background-size: cover;
         background-position: center;
@@ -64,150 +79,211 @@ st.markdown(
         padding: 3rem 2rem 2.5rem 2rem;
         text-align: center;
         margin-bottom: 2rem;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        box-shadow: 0 15px 35px -10px rgba(0, 0, 0, 0.7);
+        border: 1px solid rgba(255,255,255,0.08);
+        box-shadow: 0 20px 50px -10px rgba(0,0,0,0.8);
     }
-    
     .hero-badge {
         display: inline-block;
-        background: rgba(37, 99, 235, 0.25);
+        background: rgba(37,99,235,0.25);
         color: #93c5fd;
-        border: 1px solid rgba(96, 165, 250, 0.4);
+        border: 1px solid rgba(96,165,250,0.4);
         padding: 0.45rem 1.25rem;
         border-radius: 9999px;
-        font-size: 0.95rem;
-        font-weight: 700;
-        letter-spacing: 0.04em;
-        margin-bottom: 1.25rem;
-        backdrop-filter: blur(8px);
-    }
-    
-    .hero-subtitle {
-        font-size: 1.15rem;
-        color: #cbd5e1;
-        max-width: 780px;
-        margin: 0 auto;
-        line-height: 1.65;
-        font-weight: 400;
-    }
-    
-    /* Section Headings */
-    .section-label {
         font-size: 0.88rem;
         font-weight: 700;
-        letter-spacing: 0.08em;
-        color: #60a5fa;
-        margin-bottom: 0.85rem;
+        letter-spacing: 0.06em;
+        margin-bottom: 1.1rem;
         text-transform: uppercase;
-        display: flex;
-        align-items: center;
-        gap: 0.4rem;
+        backdrop-filter: blur(8px);
+    }
+    .hero-title {
+        font-size: 2.4rem;
+        font-weight: 800;
+        color: #f8fafc;
+        margin: 0 0 0.85rem 0;
+        line-height: 1.2;
+        letter-spacing: -0.02em;
+    }
+    .hero-title span { color: #60a5fa; }
+    .hero-subtitle {
+        font-size: 1.08rem;
+        color: #94a3b8;
+        max-width: 760px;
+        margin: 0 auto;
+        line-height: 1.7;
+        font-weight: 400;
     }
 
-    /* Equal & Proper Alignment for Destination Cards */
-    div[data-testid="stHorizontalBlock"] {
+    /* ════════════════════════════════════════
+       3. SECTION LABELS
+       ════════════════════════════════════════ */
+    .section-label {
+        font-size: 0.82rem !important;
+        font-weight: 800 !important;
+        letter-spacing: 0.1em !important;
+        color: #60a5fa !important;
+        margin-bottom: 0.9rem !important;
+        text-transform: uppercase !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.45rem !important;
+    }
+
+    /* ════════════════════════════════════════
+       4. DESTINATION CARDS
+          Scoped to .dest-grid wrapper only
+       ════════════════════════════════════════ */
+    .dest-grid div[data-testid="stHorizontalBlock"] {
         align-items: stretch !important;
+        gap: 0.6rem !important;
     }
-
-    div[data-testid="column"] {
+    .dest-grid div[data-testid="column"] {
         display: flex !important;
         flex-direction: column !important;
-        justify-content: flex-start !important;
-    }
-
-    /* Force all 5 destination image wrappers to exact identical height */
-    div[data-testid="column"] div[data-testid="stImage"] {
-        height: 120px !important;
-        max-height: 120px !important;
-        min-height: 120px !important;
+        padding: 0 !important;
+        background: #131b2e !important;
+        border-radius: 16px !important;
         overflow: hidden !important;
-        border-radius: 14px 14px 0 0 !important;
-        margin-bottom: 0 !important;
+        border: 1px solid #1e293b !important;
+        transition: box-shadow 0.25s ease, transform 0.25s ease !important;
+        min-width: 0 !important;
     }
-
-    div[data-testid="column"] div[data-testid="stImage"] img {
-        height: 120px !important;
-        max-height: 120px !important;
-        min-height: 120px !important;
+    .dest-grid div[data-testid="column"]:hover {
+        box-shadow: 0 8px 28px rgba(59,130,246,0.22) !important;
+        transform: translateY(-3px) !important;
+    }
+    .dest-grid div[data-testid="column"] div[data-testid="stImage"] {
+        height: 130px !important;
+        max-height: 130px !important;
+        min-height: 130px !important;
+        overflow: hidden !important;
+        border-radius: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        flex-shrink: 0 !important;
+    }
+    .dest-grid div[data-testid="column"] div[data-testid="stImage"] img {
+        height: 130px !important;
+        max-height: 130px !important;
+        min-height: 130px !important;
         width: 100% !important;
         object-fit: cover !important;
         object-position: center !important;
-        border-radius: 14px 14px 0 0 !important;
+        border-radius: 0 !important;
         display: block !important;
+        margin: 0 !important;
+        padding: 0 !important;
     }
-
-    /* Card button seamless integration with image */
-    div[data-testid="column"] .stButton {
-        margin-top: 0 !important;
+    .dest-grid div[data-testid="column"] .stButton {
+        margin: 0 !important;
+        padding: 0 !important;
+        flex: 1 !important;
     }
-
-    div[data-testid="column"] .stButton > button {
+    .dest-grid div[data-testid="column"] .stButton > button {
         background-color: #131b2e !important;
-        color: #f1f5f9 !important;
-        border: 1px solid #1e293b !important;
-        border-top: none !important;
-        border-radius: 0 0 14px 14px !important;
+        color: #e2e8f0 !important;
+        border: none !important;
+        border-top: 1px solid #1e293b !important;
+        border-radius: 0 !important;
         padding: 0.65rem 0.5rem !important;
-        font-weight: 600 !important;
-        font-size: 0.95rem !important;
-        height: 42px !important;
-        min-height: 42px !important;
-        max-height: 42px !important;
+        font-weight: 700 !important;
+        font-size: 0.92rem !important;
+        height: 44px !important;
+        min-height: 44px !important;
+        max-height: 44px !important;
+        width: 100% !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        transition: all 0.2s ease-in-out !important;
-        width: 100% !important;
+        cursor: pointer !important;
+        transition: background 0.2s ease, color 0.2s ease !important;
     }
-
-    div[data-testid="column"] .stButton > button:hover {
-        background-color: #1e293b !important;
+    .dest-grid div[data-testid="column"] .stButton > button:hover,
+    .dest-grid div[data-testid="column"] .stButton > button:focus,
+    .dest-grid div[data-testid="column"] .stButton > button:active {
+        background-color: #1e3a5f !important;
         color: #60a5fa !important;
-        border-color: #3b82f6 !important;
-        box-shadow: 0 4px 15px rgba(59, 130, 246, 0.25) !important;
+        outline: none !important;
+        box-shadow: none !important;
     }
 
-    /* Quick Starter prompt buttons */
-    .starter-btn .stButton > button {
-        background-color: #131b2e !important;
+    /* ════════════════════════════════════════
+       5. STARTER PROMPT BUTTONS
+          Strategy: target ALL buttons that are NOT
+          inside the destination card columns.
+          We use a data-key attribute approach via
+          key= prefix "start_" on those buttons.
+       ════════════════════════════════════════ */
+
+    /* Spacing above "Describe Your Trip" section */
+    div[data-testid="stHorizontalBlock"] + div > .section-label,
+    .section-label + div[data-testid="stHorizontalBlock"] {
+        margin-top: 1.5rem !important;
+    }
+
+    /* Scoped to .starter-grid wrapper */
+    .starter-grid div[data-testid="column"] {
+        background: transparent !important;
+        border: none !important;
+        border-radius: 0 !important;
+        overflow: visible !important;
+    }
+    .starter-grid div[data-testid="column"]:hover {
+        box-shadow: none !important;
+        transform: none !important;
+    }
+    .starter-grid .stButton > button {
+        background: linear-gradient(135deg, #1e293b 0%, #131b2e 100%) !important;
         color: #e2e8f0 !important;
-        border: 1px solid #1e293b !important;
-        border-radius: 12px !important;
-        padding: 0.75rem 0.85rem !important;
-        font-size: 0.92rem !important;
+        border: 1px solid #334155 !important;
+        border-radius: 14px !important;
+        padding: 0.85rem 1rem !important;
+        font-size: 0.93rem !important;
         font-weight: 600 !important;
-        height: 52px !important;
+        height: 56px !important;
+        min-height: 56px !important;
         text-align: center !important;
-        transition: all 0.2s ease !important;
+        transition: all 0.22s ease !important;
         width: 100% !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
     }
-
-    .starter-btn .stButton > button:hover {
-        background-color: #1e293b !important;
+    .starter-grid .stButton > button:hover,
+    .starter-grid .stButton > button:focus,
+    .starter-grid .stButton > button:active {
+        background: linear-gradient(135deg, #1e3a5f 0%, #1e293b 100%) !important;
         border-color: #3b82f6 !important;
-        color: #60a5fa !important;
+        color: #93c5fd !important;
         transform: translateY(-2px) !important;
+        box-shadow: 0 6px 20px rgba(59,130,246,0.25) !important;
+        outline: none !important;
     }
 
-    /* Sticky Bottom chat_input customization */
+    /* ════════════════════════════════════════
+       6. CHAT INPUT
+       ════════════════════════════════════════ */
     div[data-testid="stBottom"] {
-        bottom: 28px !important; /* Sits directly above the fixed footer */
+        bottom: 28px !important;
         background: transparent !important;
     }
-
     div[data-testid="stChatInput"] {
         background-color: #0d1322 !important;
-        border: 1px solid #1e293b !important;
+        border: 1px solid #334155 !important;
         border-radius: 16px !important;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6) !important;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.6) !important;
     }
-
     div[data-testid="stChatInput"] textarea {
-        color: #f8fafc !important;
+        background: transparent !important;
+        color: #f1f5f9 !important;
         font-size: 0.98rem !important;
+        caret-color: #60a5fa !important;
+    }
+    div[data-testid="stChatInput"] textarea::placeholder {
+        color: #475569 !important;
     }
 
-    /* True Bottom Footer (Fixed below the query chatbox) */
+    /* ════════════════════════════════════════
+       7. FIXED BOTTOM FOOTER (below chat input)
+       ════════════════════════════════════════ */
     .bottom-fixed-footer {
         position: fixed !important;
         bottom: 0 !important;
@@ -227,91 +303,102 @@ st.markdown(
         text-decoration: none !important;
         font-weight: 600 !important;
     }
-    .bottom-fixed-footer a:hover {
-        text-decoration: underline !important;
-    }
+    .bottom-fixed-footer a:hover { text-decoration: underline !important; }
 
-    /* Sidebar Styling */
+    /* ════════════════════════════════════════
+       8. SIDEBAR
+       ════════════════════════════════════════ */
     [data-testid="stSidebar"] {
-        background-color: #0b0f19 !important;
+        background-color: #0b0f1a !important;
         border-right: 1px solid #1e293b !important;
     }
-    [data-testid="stSidebar"] * {
+    [data-testid="stSidebar"] * { color: #e2e8f0 !important; }
+    [data-testid="stSidebar"] .stButton > button {
+        background-color: #1e293b !important;
         color: #e2e8f0 !important;
-    }
-    [data-testid="stSidebar"] .stButton > button[kind="primary"] {
-        background-color: #2563eb !important;
-        color: #ffffff !important;
+        border: 1px solid #334155 !important;
         border-radius: 8px !important;
         font-weight: 600 !important;
     }
-
-    /* ── Responsive Mobile & Tablet Rules ── */
-    @media screen and (max-width: 900px) {
-        .block-container {
-            padding-left: 1rem;
-            padding-right: 1rem;
-            padding-top: 1.25rem;
-            padding-bottom: 7.5rem !important;
-        }
-        .hero-container {
-            padding: 2.25rem 1.25rem 1.75rem 1.25rem;
-            border-radius: 16px;
-        }
-        .hero-badge {
-            font-size: 0.85rem;
-            padding: 0.35rem 1rem;
-        }
-        .hero-subtitle {
-            font-size: 1rem;
-            line-height: 1.5;
-        }
-        div[data-testid="column"] div[data-testid="stImage"],
-        div[data-testid="column"] div[data-testid="stImage"] img {
-            height: 100px !important;
-            max-height: 100px !important;
-            min-height: 100px !important;
-        }
-        div[data-testid="column"] .stButton > button {
-            font-size: 0.85rem !important;
-            height: 38px !important;
-            min-height: 38px !important;
-        }
-        .starter-btn .stButton > button {
-            font-size: 0.85rem !important;
-            height: 48px !important;
-        }
+    [data-testid="stSidebar"] .stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+        color: #ffffff !important;
+        border: none !important;
+        box-shadow: 0 4px 12px rgba(37,99,235,0.4) !important;
+    }
+    [data-testid="stSidebar"] .stButton > button:hover {
+        border-color: #3b82f6 !important;
+        color: #93c5fd !important;
     }
 
-    @media screen and (max-width: 600px) {
-        .hero-container {
-            padding: 1.75rem 0.85rem 1.5rem 0.85rem;
-            border-radius: 14px;
-        }
-        .hero-badge {
-            font-size: 0.78rem;
-            padding: 0.3rem 0.85rem;
-            margin-bottom: 0.85rem;
-        }
-        .hero-subtitle {
-            font-size: 0.92rem;
-        }
+    /* ════════════════════════════════════════
+       9. CHAT MESSAGES
+       ════════════════════════════════════════ */
+    [data-testid="stChatMessage"] {
+        background: #111827 !important;
+        border: 1px solid #1e293b !important;
+        border-radius: 16px !important;
+    }
+    [data-testid="stChatMessage"] p,
+    [data-testid="stChatMessage"] li,
+    [data-testid="stChatMessage"] h1,
+    [data-testid="stChatMessage"] h2,
+    [data-testid="stChatMessage"] h3,
+    [data-testid="stChatMessage"] h4 { color: #e2e8f0 !important; }
+
+    /* ════════════════════════════════════════
+       10. GENERAL TEXT & COMPONENT OVERRIDES
+       ════════════════════════════════════════ */
+    h1, h2, h3, h4, h5, h6 { color: #f1f5f9 !important; }
+    p, li, label { color: #cbd5e1 !important; }
+    .stMarkdown p { color: #cbd5e1 !important; }
+    hr { border-color: #1e293b !important; }
+    [data-testid="stExpander"] {
+        background: #111827 !important;
+        border: 1px solid #1e293b !important;
+        border-radius: 12px !important;
+    }
+    /* Radio buttons & feedback widgets */
+    [data-testid="stRadio"] label { color: #cbd5e1 !important; }
+    [data-testid="stTextArea"] textarea {
+        background: #0d1322 !important;
+        color: #e2e8f0 !important;
+        border: 1px solid #334155 !important;
+        border-radius: 10px !important;
+    }
+    [data-testid="stTextInput"] input {
+        background: #0d1322 !important;
+        color: #e2e8f0 !important;
+        border: 1px solid #334155 !important;
+        border-radius: 8px !important;
+    }
+
+    /* ════════════════════════════════════════
+       11. RESPONSIVE
+       ════════════════════════════════════════ */
+    @media screen and (max-width: 900px) {
+        .block-container { padding-left: 1rem; padding-right: 1rem; padding-bottom: 8rem !important; }
+        .hero-title { font-size: 1.9rem; }
         div[data-testid="column"] div[data-testid="stImage"],
         div[data-testid="column"] div[data-testid="stImage"] img {
-            height: 85px !important;
-            max-height: 85px !important;
-            min-height: 85px !important;
+            height: 100px !important; max-height: 100px !important; min-height: 100px !important;
         }
-        div[data-testid="column"] .stButton > button {
-            font-size: 0.78rem !important;
-            height: 36px !important;
-            min-height: 36px !important;
+        div[data-testid="column"] .stButton > button { font-size: 0.82rem !important; height: 38px !important; min-height: 38px !important; }
+        .starter-btn .stButton > button { font-size: 0.85rem !important; height: 48px !important; min-height: 48px !important; }
+    }
+    @media screen and (max-width: 600px) {
+        .hero-title { font-size: 1.5rem; }
+        .hero-container { padding: 2rem 1rem 1.75rem 1rem; border-radius: 14px; }
+        div[data-testid="column"] div[data-testid="stImage"],
+        div[data-testid="column"] div[data-testid="stImage"] img {
+            height: 85px !important; max-height: 85px !important; min-height: 85px !important;
         }
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
 
 # --- Sidebar Configuration ---
 with st.sidebar:
@@ -375,17 +462,19 @@ config = {"configurable": {"thread_id": st.session_state.thread_id}}
 st.markdown(
     """
     <div class="hero-container">
-        <div class="hero-badge">✦ MULTI-AGENT Personalized TRAVEL Assistant</div>
+        <div class="hero-badge">✦ Multi-Agent AI System</div>
+        <div class="hero-title">✈️ AI <span>Travel</span> Planner</div>
         <div class="hero-subtitle">
-            Four specialized agents work together — searching flights, hotels, weather and forcast of the destination building an itinerary, and delivering your personalized Travel Plan
+            Four specialized agents work together — searching flights, hotels, weather forecasts, and building a fully personalized itinerary just for you.
         </div>
     </div>
     """,
     unsafe_allow_html=True,
 )
 
-# --- Popular Destinations Grid (Equal & Uniform 600x380 Landscape Alignment) ---
+# --- Popular Destinations Grid ---
 st.markdown('<div class="section-label">🌟 Popular Destinations</div>', unsafe_allow_html=True)
+st.markdown('<div class="dest-grid">', unsafe_allow_html=True)
 dest_col1, dest_col2, dest_col3, dest_col4, dest_col5 = st.columns(5)
 
 with dest_col1:
@@ -418,39 +507,34 @@ with dest_col5:
         st.session_state.trigger_query = "Plan a 4-day weekend trip to Dubai, UAE including desert safari and skyline hotels."
         st.rerun()
 
-st.markdown("<br>", unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)  # close dest-grid
 
 # --- Describe Your Trip (Quick Prompt Starter Buttons) ---
-st.markdown('<div class="section-label">🗺️ Describe Your Trip</div>', unsafe_allow_html=True)
+st.markdown('<div class="starter-grid">', unsafe_allow_html=True)
+st.markdown('<div class="section-label" style="margin-top:1.5rem;">🗺️ Describe Your Trip</div>', unsafe_allow_html=True)
 q_col1, q_col2, q_col3, q_col4 = st.columns(4)
 
 with q_col1:
-    st.markdown('<div class="starter-btn">', unsafe_allow_html=True)
     if st.button("7-day Japan trip", use_container_width=True, key="start_japan"):
         st.session_state.trigger_query = "Plan a 7-day Japan trip with hotels, weather forecast, and no overnight flights."
         st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
 
 with q_col2:
-    st.markdown('<div class="starter-btn">', unsafe_allow_html=True)
     if st.button("Paris trip for 5 days", use_container_width=True, key="start_paris"):
         st.session_state.trigger_query = "Plan a 5-day Paris trip with central hotels, museums, and weather forecast."
         st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
 
 with q_col3:
-    st.markdown('<div class="starter-btn">', unsafe_allow_html=True)
     if st.button("Dubai weekend trip", use_container_width=True, key="start_dubai"):
         st.session_state.trigger_query = "Plan a 3-day weekend trip to Dubai with flights, city attractions, and weather."
         st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
 
 with q_col4:
-    st.markdown('<div class="starter-btn">', unsafe_allow_html=True)
     if st.button("Bali backpacking 10 days", use_container_width=True, key="start_bali"):
         st.session_state.trigger_query = "Plan a 10-day Bali backpacking trip focusing on budget villas, beaches, and weather."
         st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
+
+st.markdown('</div>', unsafe_allow_html=True)  # close starter-grid
 
 # --- Display Chat / Results History (Arrives on Top of the Bottom Query Box) ---
 if st.session_state.get("chat_history"):
