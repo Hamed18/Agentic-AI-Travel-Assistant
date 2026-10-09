@@ -450,14 +450,20 @@ def itinerary_agent(state: TravelState):
     revision_context = ""
     if state.get("human_feedback") and not state.get("approved", False):
         revision_context = f"""
-IMPORTANT USER REVISION FEEDBACK:
-The user reviewed the previous draft and asked for these specific revisions:
+CRITICAL USER REVISION FEEDBACK (HIGHEST PRIORITY):
+The user reviewed the previous draft itinerary and requested these specific changes:
 "{state.get('human_feedback')}"
 
 Previous Draft Itinerary to Modify:
 {state.get('itinerary', '')}
 
-Please update the draft itinerary to carefully reflect all of the user's requested changes while keeping the rest of the plan intact and realistic.
+STRICT REVISION & SYNCHRONIZATION RULES:
+1. OVERRIDE CONSTRAINTS: User revision feedback supersedes any conflicting original constraints (such as trip duration, number of days, budget, or preferences).
+2. FULL METADATA SYNCHRONIZATION: You MUST update EVERY section of the document so they are 100% mutually consistent with the revised scope:
+   - TITLE: Must reflect the exact revised duration (e.g. if the user asks to keep only 1 day, title MUST say "1-Day Cultural Trip to Bangkok" NOT "6-Day").
+   - OVERVIEW: Must state the updated duration (e.g. "Duration: 1 day").
+   - ITINERARY SCHEDULE: Include ONLY the requested days.
+   - TOTAL ESTIMATED COST: Recalculate the total estimated cost ONLY for the revised duration and included days (e.g. 1 day cost, not 6 days cost).
 """
 
     prompt = f"""
@@ -485,10 +491,11 @@ Budget results:
 
 Make the output structured, practical, and ready for human review.
 Format all estimated costs and budgets in USD ($) by default, or the currency specifically requested by the user.
+Ensure the title, overview duration, daily schedule, and total estimated cost calculation are ALL 100% consistent with each other and with any revision instructions.
 """
 
     result = _llm_text(
-        "You are an expert itinerary planner. Default all pricing to USD ($) unless the user specified another currency.",
+        "You are an expert itinerary planner. Ensure title, overview, schedule, and budget estimations are 100% consistent with user revision instructions.",
         prompt,
     )
 
@@ -543,33 +550,20 @@ def final_response_agent(state: TravelState):
     print("Feedback:", state.get("human_feedback"))
     print("=======================================\n")
 
-    if state["approved"]:
-        prompt = f"""
+    prompt = f"""
 The human approved this draft itinerary.
 
-Produce the final polished travel plan.
+Produce the final polished travel plan based directly on this approved draft itinerary.
 
-Draft itinerary:
+Approved Draft Itinerary:
 {state['itinerary']}
 
 Budget notes:
-{state['budget_results']}
-"""
-    else:
-        prompt = f"""
-The human did not approve the draft.
+{state.get('budget_results', '')}
 
-Original user request:
-{state['user_query']}
-
-Draft itinerary:
-{state['itinerary']}
-
-Human feedback:
-{state['human_feedback']}
-
-Budget notes:
-{state['budget_results']}
+IMPORTANT:
+- Maintain complete consistency across title, overview duration, schedule days, and total budget calculation as presented in the approved draft itinerary.
+- Do not revert to any previous trip duration or outdated budget totals.
 """
 
     result = _llm_text(
