@@ -425,6 +425,38 @@ Return a concise budget assessment with:
 
 
 
+def _is_vague_or_affirming_feedback(feedback_text: str) -> bool:
+    if not feedback_text:
+        return True
+    
+    clean_fb = feedback_text.strip().lower().strip("!.,;:-_")
+    if not clean_fb:
+        return True
+
+    vague_phrases = {
+        "ok", "okay", "k", "kk", "good", "fine", "looks good", "look good", 
+        "yes", "yeah", "yep", "cool", "nice", "great", "perfect", "sure", 
+        "no changes", "no change", "keep it", "same", "alright", "all good", 
+        "thanks", "thank you", "proceed", "continue", "done", "no", "none"
+    }
+
+    if clean_fb in vague_phrases:
+        return True
+
+    revision_action_words = {
+        "add", "remove", "delete", "change", "only", "instead", "less", "more", 
+        "don't", "keep", "update", "replace", "reduce", "increase", "budget", 
+        "hotel", "flight", "day", "night", "cost", "expensive", "cheaper", 
+        "visit", "see", "trip", "extend", "shorten", "avoid", "include", "exclude"
+    }
+
+    words = set(clean_fb.split())
+    if len(clean_fb) < 25 and not words.intersection(revision_action_words):
+        return True
+
+    return False
+
+
 def itinerary_agent(state: TravelState):
 
     print("\n========== ITINERARY AGENT INPUT ==========")
@@ -447,26 +479,33 @@ def itinerary_agent(state: TravelState):
     print(state.get("human_feedback"))
     print("===========================================\n")
 
-    revision_context = ""
-    if state.get("human_feedback") and not state.get("approved", False):
-        revision_context = f"""
-CRITICAL USER REVISION FEEDBACK (HIGHEST PRIORITY):
-The user reviewed the previous draft itinerary and requested these specific changes:
-"{state.get('human_feedback')}"
+    current_draft = state.get("itinerary", "")
+    human_fb = state.get("human_feedback", "")
 
-Previous Draft Itinerary to Modify:
-{state.get('itinerary', '')}
+    # If there is an existing draft itinerary in state, use it as the PRIMARY GROUND TRUTH
+    if current_draft and human_fb and not state.get("approved", False) and not _is_vague_or_affirming_feedback(human_fb):
+        prompt = f"""
+You are an expert travel planner revising an existing travel itinerary based on user instructions.
+
+PRIMARY GROUND TRUTH (CURRENT DRAFT ITINERARY TO MODIFY):
+{current_draft}
+
+USER REVISION INSTRUCTIONS (HIGHEST PRIORITY):
+"{human_fb}"
 
 STRICT REVISION & SYNCHRONIZATION RULES:
-1. OVERRIDE CONSTRAINTS: User revision feedback supersedes any conflicting original constraints (such as trip duration, number of days, budget, or preferences).
-2. FULL METADATA SYNCHRONIZATION: You MUST update EVERY section of the document so they are 100% mutually consistent with the revised scope:
-   - TITLE: Must reflect the exact revised duration (e.g. if the user asks to keep only 1 day, title MUST say "1-Day Cultural Trip to Bangkok" NOT "6-Day").
-   - OVERVIEW: Must state the updated duration (e.g. "Duration: 1 day").
-   - ITINERARY SCHEDULE: Include ONLY the requested days.
-   - TOTAL ESTIMATED COST: Recalculate the total estimated cost ONLY for the revised duration and included days (e.g. 1 day cost, not 6 days cost).
+1. BASELINE DOCUMENT: Treat the CURRENT DRAFT ITINERARY above as your absolute ground truth baseline. Apply the user's revision instructions directly to this baseline.
+2. DO NOT REVERT: Do NOT revert to any earlier trip duration, number of days, or outdated items from initial queries unless the user explicitly asks you to.
+3. COMPLETE METADATA SYNCHRONIZATION: You MUST ensure EVERY section of the updated document is 100% mutually consistent:
+   - TITLE: Reflect the exact revised trip duration and destination (e.g. "1-Day Cultural Trip to Bangkok" if reduced to 1 day).
+   - OVERVIEW: State the updated duration accurately.
+   - ITINERARY SCHEDULE: Include ONLY the active/requested days.
+   - TOTAL ESTIMATED COST: Recalculate total costs ONLY for the revised duration and included days.
+4. META-QUESTIONS & AMBIGUOUS FEEDBACK: If the user feedback asks a question, mentions past prompts, or does NOT specify concrete structural changes (such as adding/removing days or changing budget), PRESERVE the CURRENT DRAFT ITINERARY cleanly without inserting meta-conversational text into the travel schedule body.
 """
-
-    prompt = f"""
+    else:
+        # Initial draft itinerary creation from scratch (or fallback)
+        prompt = f"""
 Create a clear draft travel itinerary.
 
 User request:
@@ -487,15 +526,13 @@ Weather results:
 Budget results:
 {state.get('budget_results', '')}
 
-{revision_context}
-
 Make the output structured, practical, and ready for human review.
 Format all estimated costs and budgets in USD ($) by default, or the currency specifically requested by the user.
-Ensure the title, overview duration, daily schedule, and total estimated cost calculation are ALL 100% consistent with each other and with any revision instructions.
+Ensure title, overview duration, daily schedule, and total estimated cost calculation are ALL 100% consistent with each other.
 """
 
     result = _llm_text(
-        "You are an expert itinerary planner. Ensure title, overview, schedule, and budget estimations are 100% consistent with user revision instructions.",
+        "You are an expert itinerary planner. Ensure title, overview, schedule, and budget estimations are 100% consistent.",
         prompt,
     )
 
@@ -533,7 +570,13 @@ def human_approval_agent(state: TravelState):
     )
 
     approved = feedback["approved"]
-    human_feedback = feedback["feedback"]
+    human_feedback = feedback.get("feedback", "")
+
+    # Safety check: If user selected 'No, revise' but provided no actionable feedback (e.g., 'ok', 'looks good'),
+    # treat it as approval of the current draft itinerary rather than triggering a flawed revision loop.
+    if not approved and _is_vague_or_affirming_feedback(human_feedback):
+        print(f"\n[human_approval_agent] Normalizing vague feedback '{human_feedback}' to approved=True")
+        approved = True
 
     return {
         "approved": approved,

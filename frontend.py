@@ -549,16 +549,22 @@ if st.session_state.get("chat_history"):
                 )
             elif msg["type"] == "draft_plan":
                 result = msg["content"]
+                is_revision = msg.get("is_revision", False)
                 if result.get("is_valid") is False:
                     st.markdown(result.get("final_response", ""))
                 else:
-                    with st.expander("🤖 Supervisor's Agent Routing & Reasoning Plan", expanded=True):
-                        st.write(f"**Reasoning:** {result.get('supervisor_reasoning', '')}")
-                        agents_list = result.get('selected_agents', [])
-                        if agents_list:
-                            st.write(f"**Specialists Dispatched:** {', '.join(agents_list)}")
-                        else:
-                            st.write("**Specialists Dispatched:** None")
+                    if is_revision:
+                        with st.expander("🔄 Itinerary Revision Step (Direct Agent Refinement)", expanded=True):
+                            st.write("**Status:** Refined itinerary generated based on your revision feedback.")
+                            st.caption("The supervisor routing was bypassed for direct itinerary adjustment.")
+                    else:
+                        with st.expander("🤖 Supervisor's Agent Routing & Reasoning Plan", expanded=True):
+                            st.write(f"**Reasoning:** {result.get('supervisor_reasoning', '')}")
+                            agents_list = result.get('selected_agents', [])
+                            if agents_list:
+                                st.write(f"**Specialists Dispatched:** {', '.join(agents_list)}")
+                            else:
+                                st.write("**Specialists Dispatched:** None")
 
                     st.subheader("📝 Draft Itinerary")
                     if "__interrupt__" in result:
@@ -601,7 +607,8 @@ if st.session_state.get("waiting_for_approval"):
                 st.session_state.chat_history.append({
                     "role": "assistant",
                     "type": "draft_plan",
-                    "content": resumed_result
+                    "content": resumed_result,
+                    "is_revision": True
                 })
                 st.session_state.waiting_for_approval = True
             else:
@@ -664,7 +671,12 @@ if active_query:
                 config=config,
             )
 
-        st.session_state.chat_history.append({"role": "assistant", "type": "draft_plan", "content": result})
+        st.session_state.chat_history.append({
+            "role": "assistant",
+            "type": "draft_plan",
+            "content": result,
+            "is_revision": False
+        })
         
         if "__interrupt__" in result:
             st.session_state.waiting_for_approval = True
