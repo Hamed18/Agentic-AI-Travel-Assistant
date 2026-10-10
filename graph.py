@@ -1,6 +1,7 @@
 import psycopg
 from psycopg_pool import ConnectionPool
 
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.graph import END, START, StateGraph
 
@@ -158,12 +159,11 @@ def build_graph():
                 checkpointer=checkpointer
             )
         except Exception as e:
-            print(f"Warning: Could not connect to PostgreSQL checkpointer ({e}). Compiling in-memory.")
-            return graph.compile()
+            print(f"Warning: Could not connect to PostgreSQL checkpointer ({e}). Compiling in-memory with MemorySaver.")
+            return graph.compile(checkpointer=MemorySaver())
 
-    # If no DATABASE_URL is configured,
-    # compile without persistent memory.
-    return graph.compile()
+    # If no DATABASE_URL is configured, compile with MemorySaver for session persistence
+    return graph.compile(checkpointer=MemorySaver())
 
 
 app = build_graph()

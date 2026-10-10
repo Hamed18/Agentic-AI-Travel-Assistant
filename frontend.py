@@ -28,13 +28,68 @@ def create_pdf(text):
         pdf.multi_cell(0, 10, safe_text)
     return bytes(pdf.output())
 
-# --- Initialise session state ---
+# --- Initialise session state & multi-thread chat store ---
 if "thread_id" not in st.session_state:
     st.session_state.thread_id = f"user_{uuid.uuid4().hex[:8]}"
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-if "all_threads" not in st.session_state:
-    st.session_state.all_threads = []
+
+# Store per-thread conversation details: { thread_id: {"title": str, "chat_history": list, "waiting_for_approval": bool} }
+if "chats" not in st.session_state:
+    st.session_state.chats = {}
+
+if "thread_order" not in st.session_state:
+    st.session_state.thread_order = []
+
+if st.session_state.thread_id not in st.session_state.chats:
+    st.session_state.chats[st.session_state.thread_id] = {
+        "title": "New Trip",
+        "chat_history": [],
+        "waiting_for_approval": False,
+    }
+
+# Sync convenience references to active thread
+active_chat = st.session_state.chats[st.session_state.thread_id]
+st.session_state.chat_history = active_chat["chat_history"]
+st.session_state.waiting_for_approval = active_chat.get("waiting_for_approval", False)
+
+
+def save_current_chat():
+    """Synchronize the active thread state and title in the chats repository."""
+    tid = st.session_state.thread_id
+    if tid not in st.session_state.chats:
+        st.session_state.chats[tid] = {
+            "title": "New Trip",
+            "chat_history": [],
+            "waiting_for_approval": False,
+        }
+    st.session_state.chats[tid]["chat_history"] = st.session_state.chat_history
+    st.session_state.chats[tid]["waiting_for_approval"] = st.session_state.get("waiting_for_approval", False)
+
+    # If the thread has messages, generate/update its title and track in thread_order
+    if st.session_state.chat_history:
+        first_user_msg = next(
+            (m["content"] for m in st.session_state.chat_history if m.get("role") == "user"),
+            None,
+        )
+        if first_user_msg:
+            clean_title = first_user_msg.replace("📝 **Revision Requested:**", "").strip()
+            clean_title = clean_title.split("\n")[0].strip()
+            title = clean_title[:38] + "..." if len(clean_title) > 38 else clean_title
+            st.session_state.chats[tid]["title"] = title
+
+        if tid not in st.session_state.thread_order:
+            st.session_state.thread_order.insert(0, tid)
+
+
+def switch_to_thread(target_tid: str):
+    """Save current chat state and switch active session to target_tid."""
+    save_current_chat()
+    if target_tid in st.session_state.chats:
+        st.session_state.thread_id = target_tid
+        target_chat = st.session_state.chats[target_tid]
+        st.session_state.chat_history = target_chat["chat_history"]
+        st.session_state.waiting_for_approval = target_chat.get("waiting_for_approval", False)
+        st.session_state.pop("trigger_query", None)
+        st.session_state.pop("latest_result", None)
 
 # --- Premium Dark UI CSS (theme-agnostic overrides) ---
 st.markdown(
@@ -403,35 +458,35 @@ with st.sidebar:
 
     # New Chat Button
     if st.button("✏️  New Chat", use_container_width=True, type="primary"):
+        save_current_chat()
         new_tid = f"user_{uuid.uuid4().hex[:8]}"
-        if st.session_state.chat_history:
-            first_user_msg = next(
-                (m["content"] for m in st.session_state.chat_history if m["role"] == "user"),
-                st.session_state.thread_id,
-            )
-            title = first_user_msg[:40] + "..." if len(first_user_msg) > 40 else first_user_msg
-            st.session_state.all_threads.insert(0, {
-                "thread_id": st.session_state.thread_id,
-                "title": title,
-            })
+        st.session_state.chats[new_tid] = {
+            "title": "New Trip",
+            "chat_history": [],
+            "waiting_for_approval": False,
+        }
         st.session_state.thread_id = new_tid
         st.session_state.chat_history = []
+        st.session_state.waiting_for_approval = False
         st.session_state.pop("trigger_query", None)
-        st.session_state.pop("waiting_for_approval", None)
         st.session_state.pop("latest_result", None)
         st.rerun()
 
     # Recent Chats List
-    if st.session_state.all_threads:
+    visible_threads = [
+        tid for tid in st.session_state.thread_order
+        if tid in st.session_state.chats and st.session_state.chats[tid]["chat_history"]
+    ]
+    if visible_threads:
         st.markdown("#### 🕘 Recent Chats")
-        for i, thread in enumerate(st.session_state.all_threads):
-            is_active = thread["thread_id"] == st.session_state.thread_id
-            label = ("▶ " if is_active else "") + thread["title"]
-            if st.button(label, key=f"thread_{i}", use_container_width=True):
-                st.session_state.thread_id = thread["thread_id"]
-                st.session_state.chat_history = []
-                st.session_state.pop("waiting_for_approval", None)
-                st.rerun()
+        for i, tid in enumerate(visible_threads):
+            chat_info = st.session_state.chats[tid]
+            is_active = (tid == st.session_state.thread_id)
+            label = ("▶ " if is_active else "") + chat_info.get("title", "Trip Plan")
+            if st.button(label, key=f"btn_thread_{tid}", use_container_width=True):
+                if not is_active:
+                    switch_to_thread(tid)
+                    st.rerun()
 
     st.divider()
 
@@ -533,7 +588,7 @@ if st.session_state.get("chat_history"):
     st.divider()
     st.markdown("### 💬 Your Travel Plan & Conversation")
     
-    for msg in st.session_state.get("chat_history", []):
+    for idx, msg in enumerate(st.session_state.get("chat_history", [])):
         with st.chat_message(msg["role"]):
             if msg["type"] == "text":
                 st.markdown(msg["content"])
@@ -545,7 +600,7 @@ if st.session_state.get("chat_history"):
                     data=pdf_bytes,
                     file_name="Final_Travel_Plan.pdf",
                     mime="application/pdf",
-                    key=f"download_{id(msg)}"
+                    key=f"download_{st.session_state.thread_id}_{idx}"
                 )
             elif msg["type"] == "draft_plan":
                 result = msg["content"]
@@ -578,10 +633,20 @@ if st.session_state.get("waiting_for_approval"):
     with st.chat_message("assistant"):
         st.subheader("🙋 Human Approval Required")
         st.info("Review the draft itinerary above. You can approve it immediately or provide revision instructions.")
-        approved = st.radio("Approve this draft plan?", ["Yes, generate final plan", "No, revise it with feedback"], horizontal=True)
-        feedback = st.text_area("Revision Feedback (optional):", disabled=(approved == "Yes, generate final plan"), placeholder="e.g. Please choose 4-star hotels instead or add a day trip...")
+        approved = st.radio(
+            "Approve this draft plan?",
+            ["Yes, generate final plan", "No, revise it with feedback"],
+            horizontal=True,
+            key=f"approval_choice_{st.session_state.thread_id}",
+        )
+        feedback = st.text_area(
+            "Revision Feedback (optional):",
+            disabled=(approved == "Yes, generate final plan"),
+            placeholder="e.g. Please choose 4-star hotels instead or add a day trip...",
+            key=f"feedback_{st.session_state.thread_id}",
+        )
 
-        if st.button("Submit Decision & Polish Plan", type="primary"):
+        if st.button("Submit Decision & Polish Plan", type="primary", key=f"submit_approval_{st.session_state.thread_id}"):
             is_approved = (approved == "Yes, generate final plan")
 
             if not is_approved:
@@ -619,6 +684,7 @@ if st.session_state.get("waiting_for_approval"):
                         "type": "final_plan",
                         "content": f"### 🌟 Final Polished Travel Plan\n\n{resumed_result['final_response']}"
                     })
+            save_current_chat()
             st.rerun()
 
 # --- True Fixed Bottom Footer (Sits at the very bottom, below user query box) ---
@@ -681,4 +747,5 @@ if active_query:
         if "__interrupt__" in result:
             st.session_state.waiting_for_approval = True
             
+        save_current_chat()
         st.rerun()
