@@ -22,6 +22,7 @@ You can easily copy and paste this document or import it directly into **Google 
 | **4** | Vague Feedback Hallucination (`"ok"` resetting draft) | LLM State / Logic | Intent detection (`_is_vague_or_affirming_feedback`) & Ground Truth Draft preservation |
 | **5** | Stale Supervisor Reasoning on Revision Steps | UI Rendering | Disambiguated initial dispatch (`is_revision=False`) vs revision step (`is_revision=True`) |
 | **6** | Conversation Disappearing When Switching Chats | Session State & Memory | Multi-thread session store (`chats`), state sync helpers, and `MemorySaver` fallback |
+| **7** | Smart Viewport Management: Top on New Chat & Auto-Scroll to Generation | UI / Viewport & Scroll | Staged DOM top-pinning on empty chat + immediate smooth auto-scroll to generation area during inference |
 
 ---
 
@@ -205,6 +206,71 @@ When a user creates a new chat in the sidebar and later clicks on a previous cha
    return graph.compile(checkpointer=MemorySaver())
    ```
    This ensures LangGraph tracks and restores graph execution and interrupt checkpoints per `thread_id` even when operating without an external PostgreSQL instance.
+
+---
+
+## 7. 🔝 Problem 7: Smart Viewport Management (Top on Landing & Auto-Scroll to Generation)
+
+### ❌ Problem Description
+Two conflicting viewport issues degraded the user experience:
+1. **Initial Page Load & New Chat**: When a user first landed on the app or clicked **"✏️ New Chat"**, the viewport opened scrolled down near the bottom chat input box, hiding the **Hero Section banner** and the **Popular Destinations cards** above the fold.
+2. **Generation Focus**: Conversely, once a prompt was entered (from the chat input, destination cards, or starter buttons) or revision feedback was submitted, the user was left looking at the top cards without the viewport automatically guiding them down to where the agents were generating the response and displaying the output.
+
+### 🔍 Root Cause Analysis
+1. **Chat Input Autofocus & Scroll Anchoring**:
+   Streamlit's `st.chat_input` renders inside the pinned bottom bar (`div[data-testid="stBottom"]`). When the React component mounts, browser and framework autofocus routines focus the textarea, automatically pulling the scrollable containers (`[data-testid="stAppViewContainer"]`, `section[data-testid="stMain"]`, and `window`) down to the very bottom on initial visits.
+2. **Disconnected Scroll State During LLM Execution**:
+   In Streamlit, the chat history and active plan appear underneath the hero and destination card grids. When an active query begins executing, the execution spinner and user/assistant messages render further down the page. Without an explicit scroll trigger targeting the active generation container, users had to manually scroll down to check if the agents were working.
+
+### 🛠️ Technical Solution & Code Implementation
+1. **Dual State Tracking (`scroll_to_top` & `scroll_to_generation`)**:
+   - `scroll_to_top = True`: Activated strictly when `chat_history` is empty (new session or after clicking "✏️ New Chat").
+   - `scroll_to_generation = True`: Activated as soon as `active_query` executes or revision feedback is submitted via human approval.
+2. **Top DOM Anchor & Staged Reset**:
+   Placed a non-intrusive `<div id="top-anchor"></div>` immediately above the Hero container. If `chat_history` is empty, a staged JavaScript controller runs:
+   ```javascript
+   function forceScrollToTop() {
+       try {
+           const parentDoc = window.parent.document;
+           if (!parentDoc) return;
+           if (parentDoc.activeElement && parentDoc.activeElement.tagName === 'TEXTAREA') {
+               parentDoc.activeElement.blur();
+           }
+           const anchor = parentDoc.getElementById('top-anchor') || parentDoc.querySelector('.hero-container');
+           if (anchor) anchor.scrollIntoView({ behavior: 'instant', block: 'start' });
+           [parentDoc.querySelector('[data-testid="stAppViewContainer"]'),
+            parentDoc.querySelector('section[data-testid="stMain"]'),
+            parentDoc.querySelector('.main'), parentDoc.body].forEach(el => { if (el) el.scrollTop = 0; });
+       } catch (err) {}
+   }
+   forceScrollToTop();
+   requestAnimationFrame(forceScrollToTop);
+   setTimeout(forceScrollToTop, 50);
+   setTimeout(forceScrollToTop, 150);
+   setTimeout(forceScrollToTop, 300);
+   ```
+3. **In-Flight Active Generation Anchor**:
+   As soon as a query starts (`if active_query:`), `<div id="active-generation-anchor"></div>` is injected, immediately executing a smooth scroll directly to the generation area:
+   ```javascript
+   function scrollToActiveGen() {
+       try {
+           const parentDoc = window.parent.document;
+           if (!parentDoc) return;
+           const anchor = parentDoc.getElementById('active-generation-anchor') ||
+                          parentDoc.querySelector('[data-testid="stChatMessage"]:last-of-type') ||
+                          parentDoc.querySelector('.stSpinner');
+           if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+       } catch (err) {}
+   }
+   scrollToActiveGen();
+   requestAnimationFrame(scrollToActiveGen);
+   setTimeout(scrollToActiveGen, 50);
+   setTimeout(scrollToActiveGen, 150);
+   ```
+4. **Post-Generation Viewport Locking**:
+   When the LLM finishes invoking and `st.rerun()` completes, `#latest-generation-anchor` smoothly retains viewport focus on the newly generated itinerary, expander agents, and approval controls.
+5. **Zero-Height Component Isolation**:
+   Maintained CSS overrides (`iframe[height="0"] { display: none !important; ... }`) ensuring neither controller adds white space or layout artifacts.
 
 ---
 

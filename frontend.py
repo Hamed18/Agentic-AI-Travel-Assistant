@@ -1,5 +1,6 @@
 import uuid
 import streamlit as st
+import streamlit.components.v1 as components
 from langchain_core.messages import HumanMessage
 from langgraph.types import Command
 from graph import app
@@ -38,6 +39,12 @@ if "chats" not in st.session_state:
 
 if "thread_order" not in st.session_state:
     st.session_state.thread_order = []
+
+if "scroll_to_top" not in st.session_state:
+    st.session_state.scroll_to_top = True
+
+if "scroll_to_generation" not in st.session_state:
+    st.session_state.scroll_to_generation = False
 
 if st.session_state.thread_id not in st.session_state.chats:
     st.session_state.chats[st.session_state.thread_id] = {
@@ -90,6 +97,12 @@ def switch_to_thread(target_tid: str):
         st.session_state.waiting_for_approval = target_chat.get("waiting_for_approval", False)
         st.session_state.pop("trigger_query", None)
         st.session_state.pop("latest_result", None)
+        if not target_chat.get("chat_history"):
+            st.session_state.scroll_to_top = True
+            st.session_state.scroll_to_generation = False
+        else:
+            st.session_state.scroll_to_top = False
+            st.session_state.scroll_to_generation = True
 
 # --- Premium Dark UI CSS (theme-agnostic overrides) ---
 st.markdown(
@@ -119,6 +132,19 @@ st.markdown(
         padding-bottom: 9rem !important;
         padding-left: 1.5rem;
         padding-right: 1.5rem;
+    }
+
+    iframe[height="0"] {
+        display: none !important;
+        position: absolute !important;
+        visibility: hidden !important;
+        height: 0 !important;
+        width: 0 !important;
+        border: none !important;
+    }
+    div[data-testid="stCustomComponentV1"] {
+        margin: 0 !important;
+        padding: 0 !important;
     }
 
     /* ══════════════════════════════════════════════
@@ -468,6 +494,8 @@ with st.sidebar:
         st.session_state.thread_id = new_tid
         st.session_state.chat_history = []
         st.session_state.waiting_for_approval = False
+        st.session_state.scroll_to_top = True
+        st.session_state.scroll_to_generation = False
         st.session_state.pop("trigger_query", None)
         st.session_state.pop("latest_result", None)
         st.rerun()
@@ -510,6 +538,69 @@ if "user_id" not in dir():
 config = {"configurable": {"thread_id": st.session_state.thread_id}}
 
 # --- Hero Section Banner ---
+st.markdown('<div id="top-anchor"></div>', unsafe_allow_html=True)
+
+# Auto-scroll to top when user arrives on application or creates a new chat
+if not st.session_state.get("chat_history") or st.session_state.get("scroll_to_top"):
+    st.session_state.scroll_to_top = False
+    components.html(
+        """
+        <script>
+        function forceScrollToTop() {
+            try {
+                const parentDoc = window.parent.document;
+                const parentWin = window.parent;
+                if (!parentDoc) return;
+
+                // 1. Blur chat input textarea if focused to avoid pulling page down
+                if (parentDoc.activeElement && parentDoc.activeElement.tagName === 'TEXTAREA') {
+                    parentDoc.activeElement.blur();
+                }
+
+                // 2. Scroll top anchor or hero section directly into view
+                const anchor = parentDoc.getElementById('top-anchor') || parentDoc.querySelector('.hero-container');
+                if (anchor) {
+                    anchor.scrollIntoView({ behavior: 'instant', block: 'start' });
+                }
+
+                // 3. Reset scroll position on all Streamlit parent containers
+                const containers = [
+                    parentDoc.querySelector('[data-testid="stAppViewContainer"]'),
+                    parentDoc.querySelector('section[data-testid="stMain"]'),
+                    parentDoc.querySelector('.main'),
+                    parentDoc.querySelector('.block-container'),
+                    parentDoc.documentElement,
+                    parentDoc.body
+                ];
+                containers.forEach(el => {
+                    if (el) {
+                        el.scrollTop = 0;
+                        if (typeof el.scrollTo === 'function') {
+                            el.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                        }
+                    }
+                });
+
+                if (typeof parentWin.scrollTo === 'function') {
+                    parentWin.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                }
+            } catch (err) {
+                // Silently handle any sandbox or cross-origin restrictions
+            }
+        }
+
+        // Staged execution to handle immediate render and Streamlit component mount
+        forceScrollToTop();
+        requestAnimationFrame(forceScrollToTop);
+        setTimeout(forceScrollToTop, 50);
+        setTimeout(forceScrollToTop, 150);
+        setTimeout(forceScrollToTop, 300);
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
 st.markdown(
     """
     <div class="hero-container">
@@ -586,6 +677,7 @@ with q_col4:
 # --- Display Chat / Results History (Arrives on Top of the Bottom Query Box) ---
 if st.session_state.get("chat_history"):
     st.divider()
+    st.markdown('<div id="generation-header-anchor"></div>', unsafe_allow_html=True)
     st.markdown("### 💬 Your Travel Plan & Conversation")
     
     for idx, msg in enumerate(st.session_state.get("chat_history", [])):
@@ -647,6 +739,8 @@ if st.session_state.get("waiting_for_approval"):
         )
 
         if st.button("Submit Decision & Polish Plan", type="primary", key=f"submit_approval_{st.session_state.thread_id}"):
+            st.session_state.scroll_to_top = False
+            st.session_state.scroll_to_generation = True
             is_approved = (approved == "Yes, generate final plan")
 
             if not is_approved:
@@ -687,6 +781,36 @@ if st.session_state.get("waiting_for_approval"):
             save_current_chat()
             st.rerun()
 
+# Scroll view to the latest generation if newly created
+if st.session_state.get("scroll_to_generation") and st.session_state.get("chat_history"):
+    st.session_state.scroll_to_generation = False
+    st.markdown('<div id="latest-generation-anchor"></div>', unsafe_allow_html=True)
+    components.html(
+        """
+        <script>
+        function scrollToLatestGen() {
+            try {
+                const parentDoc = window.parent.document;
+                if (!parentDoc) return;
+                const anchor = parentDoc.getElementById('latest-generation-anchor') ||
+                               parentDoc.querySelector('[data-testid="stChatMessage"]:last-of-type') ||
+                               parentDoc.querySelector('.stExpander:last-of-type');
+                if (anchor) {
+                    anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            } catch(e) {}
+        }
+        scrollToLatestGen();
+        requestAnimationFrame(scrollToLatestGen);
+        setTimeout(scrollToLatestGen, 80);
+        setTimeout(scrollToLatestGen, 250);
+        setTimeout(scrollToLatestGen, 500);
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
 # --- True Fixed Bottom Footer (Sits at the very bottom, below user query box) ---
 st.markdown(
     """
@@ -714,7 +838,37 @@ elif st.session_state.get("trigger_query"):
 
 # --- Execute Plan ---
 if active_query:
+    st.session_state.scroll_to_top = False
+    st.session_state.scroll_to_generation = True
     st.session_state.chat_history.append({"role": "user", "type": "text", "content": active_query})
+    
+    # In-flight scroll anchor: immediately scroll viewport down to generation start as agents run
+    st.markdown('<div id="active-generation-anchor"></div>', unsafe_allow_html=True)
+    components.html(
+        """
+        <script>
+        function scrollToActiveGen() {
+            try {
+                const parentDoc = window.parent.document;
+                if (!parentDoc) return;
+                const anchor = parentDoc.getElementById('active-generation-anchor') ||
+                               parentDoc.querySelector('[data-testid="stChatMessage"]:last-of-type') ||
+                               parentDoc.querySelector('.stSpinner');
+                if (anchor) {
+                    anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            } catch(e) {}
+        }
+        scrollToActiveGen();
+        requestAnimationFrame(scrollToActiveGen);
+        setTimeout(scrollToActiveGen, 50);
+        setTimeout(scrollToActiveGen, 150);
+        setTimeout(scrollToActiveGen, 300);
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
     
     with st.chat_message("user"):
         st.markdown(active_query)
