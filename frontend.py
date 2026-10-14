@@ -875,21 +875,37 @@ if active_query:
 
     with st.chat_message("assistant"):
         with st.spinner("🤖 Autonomous travel agents are searching flights, hotels, weather, and computing itinerary..."):
-            result = app.invoke(
-                {
-                    "messages": [HumanMessage(content=active_query)],
-                    "user_id": user_id,
-                    "user_query": active_query,
-                    "flight_results": "",
-                    "hotel_results": "",
-                    "weather_results": "",
-                    "budget_results": "",
-                    "itinerary": "",
-                    "final_response": "",
-                    "llm_calls": 0,
-                },
-                config=config,
-            )
+            try:
+                result = app.invoke(
+                    {
+                        "messages": [HumanMessage(content=active_query)],
+                        "user_id": user_id,
+                        "user_query": active_query,
+                        "flight_results": "",
+                        "hotel_results": "",
+                        "weather_results": "",
+                        "budget_results": "",
+                        "itinerary": "",
+                        "final_response": "",
+                        "llm_calls": 0,
+                    },
+                    config=config,
+                )
+            except Exception as e:
+                err_str = str(e)
+                if "402" in err_str or "credits" in err_str.lower():
+                    err_msg = "⚠️ **OpenRouter Credit Limit**: The requested API key has exhausted its credit balance. Please check your OpenRouter account or adjust tokens."
+                elif "429" in err_str or "rate limit" in err_str.lower():
+                    err_msg = "⏳ **High Traffic / Rate Limit**: The free model provider is experiencing heavy traffic. Please wait a moment and try again."
+                else:
+                    err_msg = f"⚠️ **Error executing travel pipeline**: {err_str}"
+
+                result = {
+                    "is_valid": False,
+                    "final_response": err_msg,
+                    "selected_agents": [],
+                    "messages": [AIMessage(content=err_msg)]
+                }
 
         st.session_state.chat_history.append({
             "role": "assistant",

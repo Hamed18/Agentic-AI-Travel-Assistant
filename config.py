@@ -1,4 +1,5 @@
 import os
+import time
 import streamlit as st
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
@@ -28,11 +29,45 @@ OPENWEATHER_API_KEY = get_secret("OPENWEATHER_API_KEY")
 DATABASE_URL = get_secret("DATABASE_URL")
 OPENROUTER_API_KEY = get_secret("OPENROUTER_API_KEY")
 
-def get_llm():
+# Default free model: NVIDIA Nemotron 3 Super 120B (confirmed working, best free JSON quality)
+DEFAULT_MODEL = "nvidia/nemotron-3-super-120b-a12b:free"
+# Fallback model: NVIDIA Nemotron Lightning (lighter, faster fallback)
+FALLBACK_MODEL = "nvidia/nemotron-3.5-lightning:free"
+
+def get_llm(model: str = None):
+    """
+    Returns a ChatOpenAI LLM instance configured for OpenRouter.
+    - Uses OPENROUTER_MODEL from .env if set, otherwise DEFAULT_MODEL.
+    - max_tokens capped at 8192 to stay within free tier limits.
+    - max_retries=3 handles transient 429 / 502 errors automatically.
+    - extra_headers tells OpenRouter which app is calling (for routing/debugging).
+    """
     api_key = get_secret("OPENROUTER_API_KEY") or get_secret("OPENAI_API_KEY")
-    model = get_secret("OPENROUTER_MODEL", "qwen/qwen-2.5-72b-instruct")
+    selected_model = model or get_secret("OPENROUTER_MODEL", DEFAULT_MODEL)
+
     return ChatOpenAI(
-        model=model,
+        model=selected_model,
         api_key=api_key,
         base_url="https://openrouter.ai/api/v1",
+        max_tokens=8192,       # Cap tokens — free tier Gemma max output is ~8192
+        max_retries=3,         # Auto-retry on transient 429/502 errors (with backoff)
+        default_headers={
+            "HTTP-Referer": "http://localhost:8501",
+            "X-Title": "AI Travel Assistant",
+        },
+    )
+
+def get_fallback_llm():
+    """Returns fallback LLM when primary model is rate-limited."""
+    api_key = get_secret("OPENROUTER_API_KEY") or get_secret("OPENAI_API_KEY")
+    return ChatOpenAI(
+        model=FALLBACK_MODEL,
+        api_key=api_key,
+        base_url="https://openrouter.ai/api/v1",
+        max_tokens=8192,
+        max_retries=3,
+        default_headers={
+            "HTTP-Referer": "http://localhost:8501",
+            "X-Title": "AI Travel Assistant",
+        },
     )
