@@ -1,9 +1,9 @@
 # 📘 Comprehensive System Changelog & Problem Solutions Documentation
 **Project:** Multi-Agent AI Travel Assistant  
 **Author:** AI Agentic Assistant & Dev Team  
-**Date:** October 10, 2026  
+**Date:** October 15, 2026  
 
----
+--- 
 
 ## 🎯 Executive Overview
 This document serves as a detailed technical record of all major problems, root causes, design flaws, and architectural solutions implemented across the **Multi-Agent AI Travel Assistant** application. 
@@ -23,6 +23,7 @@ You can easily copy and paste this document or import it directly into **Google 
 | **5** | Stale Supervisor Reasoning on Revision Steps | UI Rendering | Disambiguated initial dispatch (`is_revision=False`) vs revision step (`is_revision=True`) |
 | **6** | Conversation Disappearing When Switching Chats | Session State & Memory | Multi-thread session store (`chats`), state sync helpers, and `MemorySaver` fallback |
 | **7** | Smart Viewport Management: Top on New Chat & Auto-Scroll to Generation | UI / Viewport & Scroll | Staged DOM top-pinning on empty chat + immediate smooth auto-scroll to generation area during inference |
+| **8** | OpenRouter 402 Credit Exhaustion, Free Model 404s & Guardrail Rigidity | LLM / Model Infrastructure & Error Handling | Dynamic free model discovery (`nvidia/nemotron-3-super-120b`), token capping, resilient fallback routing, permissive guardrails, and graceful UI error states |
 
 ---
 
@@ -271,6 +272,160 @@ Two conflicting viewport issues degraded the user experience:
    When the LLM finishes invoking and `st.rerun()` completes, `#latest-generation-anchor` smoothly retains viewport focus on the newly generated itinerary, expander agents, and approval controls.
 5. **Zero-Height Component Isolation**:
    Maintained CSS overrides (`iframe[height="0"] { display: none !important; ... }`) ensuring neither controller adds white space or layout artifacts.
+
+---
+
+## 8. 🛡️ Problem 8: OpenRouter 402 Credit Depletion, Free Model 404 Deprecations & Guardrail Rigidity
+
+### ❌ Problem Description
+1. **OpenRouter 402 Insufficient Credits Block**:
+   When users submitted a travel planning request, the backend failed immediately with:
+   ```text
+   openai.APIStatusError: Error code: 402 - {'error': {'message': "This request requires more credits, or fewer max_tokens. You requested up to 16384 tokens, but can only afford 16081..."}}
+   ```
+   The system was configured to call the paid model (`qwen/qwen-2.5-72b-instruct`) without token caps, causing OpenRouter to pre-calculate required credit reserves against `max_tokens=16384` and reject the execution outright.
+2. **Discontinued Free Model Slugs (404 Not Found)**:
+   Attempts to switch to commonly referenced free models such as `google/gemma-3-12b-it:free` and `meta-llama/llama-3.1-8b-instruct:free` failed with:
+   ```text
+   openai.NotFoundError: Error code: 404 - {'error': {'message': 'This model is unavailable for free. The paid version is available now...'}}
+   ```
+3. **Rigid Guardrail Blocking Valid Inquiries**:
+   The initial input validation guardrail evaluated short, natural prompts (e.g., `"Tokyo"`, `"Paris"`, or `"Hello"`) as `allowed: false`, misclassifying valid travel destinations and greetings as off-topic and returning an FAQ rejection message.
+4. **Unhandled JSON Parsing & UI Crash**:
+   When an LLM response contained markdown code fences (e.g., ```` ```json ... ``` ````) or lacked curly brackets, `_json_from_llm` threw unhandled `ValueError` / `json.JSONDecodeError` exceptions, causing Streamlit to crash with a raw traceback screen.
+
+---
+
+### 🔍 Root Cause Analysis
+1. **Uncapped `max_tokens` Allocation**: LangChain’s `ChatOpenAI` initialized without an explicit token ceiling, defaulting to OpenRouter's maximum window size. OpenRouter validates the user's account credit against the *maximum possible tokens* for the request rather than actual usage. Because the account balance had fallen slightly below the 16,384-token reserve threshold, every query was blocked with code `402`.
+2. **Upstream Free Tier Rotations on OpenRouter**: Free tier availability is dynamic on OpenRouter. Providers periodically retire `:free` endpoints or transition popular models to paid-only when compute grants expire. Hardcoding unverified free slugs leads to runtime `404` errors.
+3. **Over-Strict Guardrail Prompt**: The guardrail prompt asked *"Determine whether the following request is a valid travel planning request"*, which the model interpreted narrowly to mean a complete, fully specified itinerary request with dates and budget. It rejected simple city names and friendly greetings.
+4. **Fragile Substring JSON Extraction**: The extraction routine used `raw.index("{")` and `raw.rindex("}")` without handling markdown code blocks or providing a default dictionary if parsing failed, leading to pipeline crashes.
+
+---
+
+### 🛠️ Technical Solution & Code Implementation
+
+#### 1. Live Free Model Discovery & Dynamic Selection
+Rather than guessing model slugs, we queried OpenRouter's live API (`https://openrouter.ai/api/v1/models`) to identify models with zero prompt and completion pricing. We benchmarked candidates for reasoning and structured JSON output, selecting:
+- **Primary Model**: `nvidia/nemotron-3-super-120b-a12b:free` (120 Billion parameters, confirmed working, high reasoning ability, accurate JSON formatting).
+- **Secondary Fallback Model**: `nvidia/nemotron-3.5-lightning:free` (lighter, fast fallback).
+
+#### 2. Token Capping, Auto-Retry & Fallback LLM Setup (`config.py`)
+In `config.py`, we implemented explicit token ceilings, retry policies with backoff, and model fallback instances:
+```python
+DEFAULT_MODEL = "nvidia/nemotron-3-super-120b-a12b:free"
+FALLBACK_MODEL = "nvidia/nemotron-3.5-lightning:free"
+
+def get_llm(model: str = None):
+    api_key = get_secret("OPENROUTER_API_KEY") or get_secret("OPENAI_API_KEY")
+    selected_model = model or get_secret("OPENROUTER_MODEL", DEFAULT_MODEL)
+    return ChatOpenAI(
+        model=selected_model,
+        api_key=api_key,
+        base_url="https://openrouter.ai/api/v1",
+        max_tokens=8192,       # Prevents pre-allocation credit blocks
+        max_retries=3,         # Automatic backoff on transient 429/502 errors
+        default_headers={
+            "HTTP-Referer": "http://localhost:8501",
+            "X-Title": "AI Travel Assistant",
+        },
+    )
+
+def get_fallback_llm():
+    api_key = get_secret("OPENROUTER_API_KEY") or get_secret("OPENAI_API_KEY")
+    return ChatOpenAI(
+        model=FALLBACK_MODEL,
+        api_key=api_key,
+        base_url="https://openrouter.ai/api/v1",
+        max_tokens=8192,
+        max_retries=3,
+        default_headers={
+            "HTTP-Referer": "http://localhost:8501",
+            "X-Title": "AI Travel Assistant",
+        },
+    )
+```
+
+#### 3. Automatic Rate-Limit & Quota Fallback Routing (`agents.py`)
+In `agents.py`, `_llm_text` was rewritten to intercept `429` (RateLimitError) and `402` (APIStatusError) exceptions and automatically retry the call using the fallback model:
+```python
+def _llm_text(system: str, prompt: str) -> str:
+    try:
+        response = llm.invoke([
+            SystemMessage(content=system),
+            HumanMessage(content=prompt),
+        ])
+        return response.content
+    except (RateLimitError, APIStatusError) as e:
+        error_code = getattr(e, 'status_code', None)
+        if error_code in (429, 402):
+            print(f"\n[LLM FALLBACK] Primary model rate-limited ({error_code}). Switching to fallback...\n")
+            time.sleep(1)
+            response = _fallback_llm.invoke([
+                SystemMessage(content=system),
+                HumanMessage(content=prompt),
+            ])
+            return response.content
+        raise
+```
+
+#### 4. Resilient JSON Parsing & Permissive Travel Guardrail (`agents.py`)
+- **Code Block Stripping & Safe Fallback**:
+  ```python
+  def _json_from_llm(text: str, default: dict = None) -> dict:
+      cleaned = text.strip()
+      if "```" in cleaned:
+          first_fence = cleaned.find("```")
+          newline_after = cleaned.find("\n", first_fence)
+          if newline_after != -1:
+              rest = cleaned[newline_after + 1:]
+              last_fence = rest.rfind("```")
+              cleaned = rest[:last_fence].strip() if last_fence != -1 else rest.strip()
+      try:
+          start = cleaned.index("{")
+          end = cleaned.rindex("}") + 1
+          return json.loads(cleaned[start:end])
+      except Exception as e:
+          if default is not None:
+              return default
+          return {}
+  ```
+- **Explicit Permissive Guardrail Rules**: Updated the guardrail prompt with clear evaluation criteria that explicitly classify destination names, travel inquiries, and friendly greetings as `allowed: true`.
+- **Default Routing In Supervisor**: If JSON extraction fails, the supervisor gracefully defaults to routing through `["flight_agent", "hotel_agent", "weather_agent", "itinerary_agent"]` with safe `.get()` dictionary lookups instead of throwing a `KeyError`.
+
+#### 5. Graceful UI Error Handling (`frontend.py`)
+Wrapped `app.invoke()` in a `try...except` block in `frontend.py` to catch unforeseen API issues and display an actionable markdown alert in the chat window rather than an unhandled Streamlit exception traceback.
+
+---
+
+### 🚫 Alternatives Evaluated That Did Not Work
+1. **Alternative 1: Switching to `google/gemma-3-12b-it:free`**
+   - *Result*: Failed with `404 Not Found`. OpenRouter removed the free slug and made Gemma 3 12B paid-only.
+2. **Alternative 2: Switching to `meta-llama/llama-3.1-8b-instruct:free`**
+   - *Result*: Failed with `404 Not Found`. OpenRouter similarly transitioned Llama 3.1 8B to paid-only.
+3. **Alternative 3: Using the Dynamic Router `openrouter/free`**
+   - *Result*: Highly inconsistent. The dynamic router routed requests to ultra-small models (such as `liquid/lfm-2.5-2.6b:free`), which frequently failed to follow system instructions, omitted JSON fields, or returned `NoneType` responses.
+4. **Alternative 4: Keeping Uncapped `max_tokens` and Reducing Prompt Length**
+   - *Result*: Failed. Even with a 20-word prompt, OpenRouter evaluates the user's remaining balance against the configured `max_tokens` ceiling (16,384 tokens), which consistently triggered the 402 rejection.
+5. **Alternative 5: Retaining the Original Strict Guardrail Prompt**
+   - *Result*: Failed. The LLM repeatedly blocked queries like `"Tokyo"` and `"Hello"`, mistakenly identifying them as incomplete and non-travel requests.
+
+---
+
+### ⚠️ Limitations & Future Failure Modes
+1. **Free Tier Provider Volatility**:
+   - *Risk*: Free models on OpenRouter are hosted by independent third-party providers. If providers experience outages, remove the free tier, or rotate slugs, the primary model could return `429` or `404`.
+   - *Mitigation*: Our automatic fallback handler switches from `nemotron-3-super-120b` to `nemotron-3.5-lightning`. If both fail, the user can easily swap `OPENROUTER_MODEL` in `.env` or add credits for paid models (`qwen/qwen-2.5-72b-instruct`).
+2. **Platform Rate Limits on Free Tier**:
+   - *Risk*: OpenRouter enforces limits of 20 requests per minute and 50 requests per day for free accounts with under $10 in lifetime purchases (1,000 requests/day for accounts with $10+ lifetime purchases).
+   - *Mitigation*: The UI displays a friendly cooldown notice if daily limits are reached.
+3. **Fallback Model Formatting Variance**:
+   - *Risk*: While the 120B primary model generates strict JSON, lighter fallback models under heavy compute pressure may include conversational text around JSON.
+   - *Mitigation*: `_json_from_llm` includes markdown fence stripping, curly-brace substring slicing, and default dict fallback so the app continues running without crashing.
+4. **API Key Revocation**:
+   - *Risk*: If the user's OpenRouter API key is modified or deleted from their account dashboard, requests will fail with `401 Unauthorized`.
+   - *Mitigation*: Friendly error catching in `frontend.py` guides the user to check their OpenRouter key in `.env` or Streamlit Cloud Secrets.
 
 ---
 
