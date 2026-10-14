@@ -1,7 +1,7 @@
 import uuid
 import streamlit as st
 import streamlit.components.v1 as components
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.types import Command
 from graph import app
 
@@ -752,34 +752,41 @@ if st.session_state.get("waiting_for_approval"):
                 })
 
             with st.spinner("Processing decision and updating travel plan..." if not is_approved else "Polishing final travel plan..."):
-                resumed_result = app.invoke(
-                    Command(
-                        resume={
-                            "approved": is_approved,
-                            "feedback": feedback,
-                        }
-                    ),
-                    config=config,
-                )
+                try:
+                    resumed_result = app.invoke(
+                        Command(
+                            resume={
+                                "approved": is_approved,
+                                "feedback": feedback,
+                            }
+                        ),
+                        config=config,
+                    )
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
+                    st.error(f"⚠️ Error updating plan: {e}")
+                    resumed_result = None
 
-            if "__interrupt__" in resumed_result:
-                st.session_state.chat_history.append({
-                    "role": "assistant",
-                    "type": "draft_plan",
-                    "content": resumed_result,
-                    "is_revision": True
-                })
-                st.session_state.waiting_for_approval = True
-            else:
-                st.session_state.waiting_for_approval = False
-                if resumed_result and resumed_result.get("final_response"):
+            if resumed_result:
+                if "__interrupt__" in resumed_result:
                     st.session_state.chat_history.append({
                         "role": "assistant",
-                        "type": "final_plan",
-                        "content": f"### 🌟 Final Polished Travel Plan\n\n{resumed_result['final_response']}"
+                        "type": "draft_plan",
+                        "content": resumed_result,
+                        "is_revision": True
                     })
-            save_current_chat()
-            st.rerun()
+                    st.session_state.waiting_for_approval = True
+                else:
+                    st.session_state.waiting_for_approval = False
+                    if resumed_result.get("final_response"):
+                        st.session_state.chat_history.append({
+                            "role": "assistant",
+                            "type": "final_plan",
+                            "content": f"### 🌟 Final Polished Travel Plan\n\n{resumed_result['final_response']}"
+                        })
+                save_current_chat()
+                st.rerun()
 
 # Scroll view to the latest generation if newly created
 if st.session_state.get("scroll_to_generation") and st.session_state.get("chat_history"):
@@ -892,6 +899,9 @@ if active_query:
                     config=config,
                 )
             except Exception as e:
+                import traceback
+                print("\n[STREAMLIT EXECUTION ERROR]:")
+                traceback.print_exc()
                 err_str = str(e)
                 if "402" in err_str or "credits" in err_str.lower():
                     err_msg = "⚠️ **OpenRouter Credit Limit**: The requested API key has exhausted its credit balance. Please check your OpenRouter account or adjust tokens."

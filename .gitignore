@@ -28,3 +28,7 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Scratch & Temporary test files
+scratch*
+*.log
