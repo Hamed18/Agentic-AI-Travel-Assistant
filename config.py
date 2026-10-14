@@ -38,7 +38,8 @@ def get_llm(model: str = None):
     """
     Returns a ChatOpenAI LLM instance configured for OpenRouter.
     - Uses OPENROUTER_MODEL from .env if set, otherwise DEFAULT_MODEL.
-    - max_tokens capped at 8192 to stay within free tier limits.
+    - extra_body={'max_tokens': 4096} explicitly forces OpenRouter to cap tokens at 4096,
+      preventing the 16384-token pre-allocation credit check error on free accounts.
     - max_retries=3 handles transient 429 / 502 errors automatically.
     - extra_headers tells OpenRouter which app is calling (for routing/debugging).
     """
@@ -49,10 +50,11 @@ def get_llm(model: str = None):
         model=selected_model,
         api_key=api_key,
         base_url="https://openrouter.ai/api/v1",
-        max_tokens=8192,       # Cap tokens — free tier Gemma max output is ~8192
-        max_retries=3,         # Auto-retry on transient 429/502 errors (with backoff)
+        max_tokens=4096,
+        extra_body={"max_tokens": 4096},
+        max_retries=3,
         default_headers={
-            "HTTP-Referer": "http://localhost:8501",
+            "HTTP-Referer": "https://streamlit.io",
             "X-Title": "AI Travel Assistant",
         },
     )
@@ -64,10 +66,12 @@ def get_fallback_llm():
         model=FALLBACK_MODEL,
         api_key=api_key,
         base_url="https://openrouter.ai/api/v1",
-        max_tokens=8192,
+        max_tokens=4096,
+        extra_body={"max_tokens": 4096},
         max_retries=3,
         default_headers={
-            "HTTP-Referer": "http://localhost:8501",
+            "HTTP-Referer": "https://streamlit.io",
             "X-Title": "AI Travel Assistant",
         },
     )
+
