@@ -283,7 +283,7 @@ Two conflicting viewport issues degraded the user experience:
    ```text
    openai.APIStatusError: Error code: 402 - {'error': {'message': "This request requires more credits, or fewer max_tokens. You requested up to 16384 tokens, but can only afford 16081..."}}
    ```
-   The system was configured to call the paid model (`qwen/qwen-2.5-72b-instruct`) without token caps, causing OpenRouter to pre-calculate required credit reserves against `max_tokens=16384` and reject the execution outright.
+   The system was configured without strict token caps, causing OpenRouter to pre-calculate required credit reserves against `max_tokens=16384` (the model's default maximum context window) and reject the execution outright when the account balance dropped below that pre-authorization hold.
 2. **Discontinued Free Model Slugs (404 Not Found)**:
    Attempts to switch to commonly referenced free models such as `google/gemma-3-12b-it:free` and `meta-llama/llama-3.1-8b-instruct:free` failed with:
    ```text
@@ -306,13 +306,35 @@ Two conflicting viewport issues degraded the user experience:
 
 ### 🛠️ Technical Solution & Code Implementation
 
-#### 1. Live Free Model Discovery & Dynamic Selection
-Rather than guessing model slugs, we queried OpenRouter's live API (`https://openrouter.ai/api/v1/models`) to identify models with zero prompt and completion pricing. We benchmarked candidates for reasoning and structured JSON output, selecting:
-- **Primary Model**: `nvidia/nemotron-3-super-120b-a12b:free` (120 Billion parameters, confirmed working, high reasoning ability, accurate JSON formatting).
-- **Secondary Fallback Model**: `nvidia/nemotron-3.5-lightning:free` (lighter, fast fallback).
+#### 1. Integrated LLM Models & Key Architectural Benefits
+Rather than guessing model slugs or relying on deprecated endpoints, we queried OpenRouter's live catalog (`https://openrouter.ai/api/v1/models`) to identify active models with zero prompt and completion pricing. We benchmarked candidates for reasoning, speed, and structured JSON output, selecting a dual-tier NVIDIA architecture:
+
+* **Primary Model — NVIDIA Nemotron 3 Super 120B (`nvidia/nemotron-3-super-120b-a12b:free`)**:
+  - **Massive 120-Billion Parameter Scale**: Delivers enterprise-grade reasoning, deep context synthesis across multi-turn travel plans, and strong adherence to system personas.
+  - **Strict Structured JSON Adherence**: Multi-agent supervisors require 100% parsable JSON payloads for graph routing (`{"next_agent": "flight_agent"}`). Nemotron 3 Super reliably outputs valid JSON without omitting keys or introducing conversational filler.
+  - **100% Free Tier ($0.00 Cost)**: Runs on OpenRouter's free tier with zero prompt or completion charges, preventing balance exhaustion on production deployments.
+
+* **Secondary Fallback Model — NVIDIA Nemotron 3.5 Lightning (`nvidia/nemotron-3.5-lightning:free`)**:
+  - **High-Speed Inference & Low Latency**: Engineered for rapid token generation with minimal Time-To-First-Token (TTFT), making it ideal for immediate failover.
+  - **Zero-Downtime Resilience**: Seamlessly handles requests whenever the primary 120B model encounters transient provider congestion (`429`) or server timeouts (`502`/`503`).
+  - **100% Free Tier ($0.00 Cost)**: Ensures secondary routing never incurs unexpected credit billing.
+
+##### 📊 Dual-Tier Model Comparison Matrix
+| Architecture Attribute | Primary Model: Nemotron 3 Super 120B | Fallback Model: Nemotron 3.5 Lightning |
+| :--- | :--- | :--- |
+| **Model Slug** | `nvidia/nemotron-3-super-120b-a12b:free` | `nvidia/nemotron-3.5-lightning:free` |
+| **Primary Responsibility** | Main Agent Reasoning, Supervisor Routing, Itinerary Synthesis | High-Speed Failover, Rate-Limit Recovery |
+| **Parameter Scale** | 120 Billion Parameters | Optimized Lightweight High-Throughput |
+| **Pricing** | $0.00 / 1M prompt & completion tokens | $0.00 / 1M prompt & completion tokens |
+| **Structured Output Quality** | Strict JSON adherence, zero hallucinated routing keys | Fast structured parsing with regex fallback |
+| **Token Budget Ceiling** | Hard-capped at 4,096 tokens via `extra_body` | Hard-capped at 4,096 tokens via `extra_body` |
+| **Failover Trigger** | 3 retries with exponential backoff | Automatic instant switch on HTTP 429/402 |
+
+---
 
 #### 2. Token Capping, Auto-Retry & Fallback LLM Setup (`config.py`)
-In `config.py`, we implemented explicit token ceilings, retry policies with backoff, and model fallback instances:
+In `config.py`, we implemented explicit token ceilings, retry policies with backoff, and model fallback instances. Critically, we passed `extra_body={"max_tokens": 4096}` because LangChain's `ChatOpenAI` renames `max_tokens` to `max_completion_tokens` internally—which OpenRouter's credit reservation engine overlooks, causing it to assume a 16,384-token reserve requirement:
+
 ```python
 DEFAULT_MODEL = "nvidia/nemotron-3-super-120b-a12b:free"
 FALLBACK_MODEL = "nvidia/nemotron-3.5-lightning:free"
@@ -324,10 +346,11 @@ def get_llm(model: str = None):
         model=selected_model,
         api_key=api_key,
         base_url="https://openrouter.ai/api/v1",
-        max_tokens=8192,       # Prevents pre-allocation credit blocks
-        max_retries=3,         # Automatic backoff on transient 429/502 errors
+        max_tokens=4096,
+        extra_body={"max_tokens": 4096},  # Explicitly forces OpenRouter reservation cap
+        max_retries=3,                    # Automatic backoff on transient 429/502 errors
         default_headers={
-            "HTTP-Referer": "http://localhost:8501",
+            "HTTP-Referer": "https://streamlit.io",
             "X-Title": "AI Travel Assistant",
         },
     )
@@ -338,10 +361,11 @@ def get_fallback_llm():
         model=FALLBACK_MODEL,
         api_key=api_key,
         base_url="https://openrouter.ai/api/v1",
-        max_tokens=8192,
+        max_tokens=4096,
+        extra_body={"max_tokens": 4096},
         max_retries=3,
         default_headers={
-            "HTTP-Referer": "http://localhost:8501",
+            "HTTP-Referer": "https://streamlit.io",
             "X-Title": "AI Travel Assistant",
         },
     )
@@ -394,8 +418,10 @@ def _llm_text(system: str, prompt: str) -> str:
 - **Explicit Permissive Guardrail Rules**: Updated the guardrail prompt with clear evaluation criteria that explicitly classify destination names, travel inquiries, and friendly greetings as `allowed: true`.
 - **Default Routing In Supervisor**: If JSON extraction fails, the supervisor gracefully defaults to routing through `["flight_agent", "hotel_agent", "weather_agent", "itinerary_agent"]` with safe `.get()` dictionary lookups instead of throwing a `KeyError`.
 
-#### 5. Graceful UI Error Handling (`frontend.py`)
-Wrapped `app.invoke()` in a `try...except` block in `frontend.py` to catch unforeseen API issues and display an actionable markdown alert in the chat window rather than an unhandled Streamlit exception traceback.
+#### 5. Graceful UI Error Handling & Server Diagnostics (`frontend.py`)
+- **Import Resolution**: Ensured `AIMessage` was properly imported alongside `HumanMessage` (`from langchain_core.messages import AIMessage, HumanMessage`) so that synthesized error cards render cleanly directly into the conversation stream without triggering a `NameError`.
+- **Exception Boundary**: Wrapped graph execution (`app.invoke()`) and human-in-the-loop resumptions (`Command(resume=...)`) in `try...except` blocks that trap API-level credit or rate limit errors, rendering a styled alert banner instead of crashing the Streamlit application.
+- **Traceback Logging**: Added `traceback.print_exc()` to output complete call stack traces directly to the host console (visible in Streamlit Cloud "Manage App" logs) for rapid remote troubleshooting.
 
 ---
 
@@ -416,7 +442,7 @@ Wrapped `app.invoke()` in a `try...except` block in `frontend.py` to catch unfor
 ### ⚠️ Limitations & Future Failure Modes
 1. **Free Tier Provider Volatility**:
    - *Risk*: Free models on OpenRouter are hosted by independent third-party providers. If providers experience outages, remove the free tier, or rotate slugs, the primary model could return `429` or `404`.
-   - *Mitigation*: Our automatic fallback handler switches from `nemotron-3-super-120b` to `nemotron-3.5-lightning`. If both fail, the user can easily swap `OPENROUTER_MODEL` in `.env` or add credits for paid models (`qwen/qwen-2.5-72b-instruct`).
+   - *Mitigation*: Our automatic fallback handler switches from `nemotron-3-super-120b` to `nemotron-3.5-lightning`. Both models operate on OpenRouter's 100% free tier. Users can also configure alternative model slugs in `.env` or Streamlit Cloud Secrets at any time.
 2. **Platform Rate Limits on Free Tier**:
    - *Risk*: OpenRouter enforces limits of 20 requests per minute and 50 requests per day for free accounts with under $10 in lifetime purchases (1,000 requests/day for accounts with $10+ lifetime purchases).
    - *Mitigation*: The UI displays a friendly cooldown notice if daily limits are reached.

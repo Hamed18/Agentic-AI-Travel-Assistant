@@ -526,7 +526,7 @@ with st.sidebar:
         """
         <div style='font-size:0.75rem;color:#64748b;margin-top:0.8rem;line-height:1.4;'>
             Developed by <a href="https://www.linkedin.com/in/devhamed/" target="_blank" style="color:#60a5fa;text-decoration:none;font-weight:600;">Hamed Hasan</a><br>
-            Powered by LangGraph + Qwen + MCP
+            Powered by LangGraph + Nemotron + MCP
         </div>
         """,
         unsafe_allow_html=True,
@@ -823,7 +823,7 @@ st.markdown(
     """
     <div class="bottom-fixed-footer">
         Developed by <a href="https://www.linkedin.com/in/devhamed/" target="_blank">Hamed Hasan</a>
-        &nbsp;·&nbsp; Powered by LangGraph, Qwen &amp; MCP
+        &nbsp;·&nbsp; Powered by LangGraph, Nemotron &amp; MCP
     </div>
     """,
     unsafe_allow_html=True,
