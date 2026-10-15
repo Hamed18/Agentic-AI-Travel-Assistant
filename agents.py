@@ -524,6 +524,69 @@ def itinerary_agent(state: TravelState):
     current_draft = state.get("itinerary", "")
     human_fb = state.get("human_feedback", "")
 
+    DAY_FORMAT_INSTRUCTIONS = """
+MANDATORY DOCUMENT STRUCTURE & FORMAT RULES:
+
+1. FLIGHT OPTIONS SECTION:
+You MUST provide a complete markdown table of flight choices:
+| Airline | Route | Departure | Arrival | Duration | Est. Price |
+|---------|-------|-----------|---------|----------|------------|
+Followed by short booking advice.
+
+2. HOTEL RECOMMENDATIONS SECTION:
+You MUST provide a complete markdown table of hotel choices:
+| Hotel Name | Neighborhood | Rating | Price / Night | Total Stay |
+|------------|--------------|--------|---------------|------------|
+Followed by short neighborhood advice.
+
+3. WEATHER FORECAST SECTION:
+You MUST provide a complete markdown table for the trip forecast:
+| Day / Date | Condition | High Temp | Low Temp | Advice / Humidity |
+|------------|-----------|-----------|----------|-------------------|
+Followed by packing tips.
+
+4. DAY-BY-DAY ITINERARY SCHEDULE (MANDATORY TEXT FORMAT — NO TABLES FOR DAILY SCHEDULE):
+For each day of the trip, use this EXACT structure:
+
+## Day N — [Theme Title]
+**Location:** [Specific area/neighborhood, City]
+
+### Morning
+- **Activity:** [Specific activity name]
+- **Details:** [What to do, opening hours, entry fee if any]
+- **Budget:** $[amount]
+
+### Afternoon
+- **Activity:** [Specific activity name]
+- **Details:** [What to do, distance, travel time]
+- **Budget:** $[amount]
+
+### Evening
+- **Activity:** [Specific activity name]
+- **Details:** [Restaurant name or experience details]
+- **Budget:** $[amount]
+
+**Day N Total:** $[sum of day budget]
+
+---
+
+5. OVERALL BUDGET SUMMARY SECTION:
+You MUST provide a complete markdown table categorizing all expenses:
+| Category | Estimated Cost |
+|----------|---------------|
+| Flights | $[amount] |
+| Accommodation | $[amount] |
+| Daily Activities & Sightseeing | $[amount] |
+| Food & Dining | $[amount] |
+| Local Transport | $[amount] |
+| Miscellaneous | $[amount] |
+| **Total Estimated Cost** | **$[total]** |
+
+6. PRACTICAL TIPS & BOOKING CHECKLIST:
+Provide 4-5 actionable tips and a numbered booking checklist.
+"""
+
+
     # If there is an existing draft itinerary in state, use it as the PRIMARY GROUND TRUTH
     if current_draft and human_fb and not state.get("approved", False) and not _is_vague_or_affirming_feedback(human_fb):
         prompt = f"""
@@ -541,9 +604,15 @@ STRICT REVISION & SYNCHRONIZATION RULES:
 3. COMPLETE METADATA SYNCHRONIZATION: You MUST ensure EVERY section of the updated document is 100% mutually consistent:
    - TITLE: Reflect the exact revised trip duration and destination (e.g. "1-Day Cultural Trip to Bangkok" if reduced to 1 day).
    - OVERVIEW: State the updated duration accurately.
-   - ITINERARY SCHEDULE: Include ONLY the active/requested days.
+   - ITINERARY SCHEDULE: Include ONLY the active/requested days — formatted as rich text per day, NOT as a table.
    - TOTAL ESTIMATED COST: Recalculate total costs ONLY for the revised duration and included days.
 4. META-QUESTIONS & AMBIGUOUS FEEDBACK: If the user feedback asks a question, mentions past prompts, or does NOT specify concrete structural changes (such as adding/removing days or changing budget), PRESERVE the CURRENT DRAFT ITINERARY cleanly without inserting meta-conversational text into the travel schedule body.
+5. NO META-EXPLANATIONS OR SELF-CHECK LISTS:
+   - Output ONLY the complete, ready-to-use travel itinerary document.
+   - NEVER output internal reasoning, validation checklists, or sections explaining "How the elements stay consistent" or "Why these rules are satisfied".
+   - You MUST include the full day-by-day activities schedule with concrete Morning, Afternoon, and Evening details for every single day.
+
+{DAY_FORMAT_INSTRUCTIONS}
 """
     else:
         # Initial draft itinerary creation from scratch (or fallback)
@@ -571,6 +640,9 @@ Budget results:
 Make the output structured, practical, and ready for human review.
 Format all estimated costs and budgets in USD ($) by default, or the currency specifically requested by the user.
 Ensure title, overview duration, daily schedule, and total estimated cost calculation are ALL 100% consistent with each other.
+CRITICAL: Output ONLY the complete travel plan itself with full daily schedule and tables. Never output meta-reasoning, validation checklists, or commentary explaining your thought process.
+
+{DAY_FORMAT_INSTRUCTIONS}
 """
 
     result = _llm_text(
@@ -635,33 +707,17 @@ def final_response_agent(state: TravelState):
     print("Feedback:", state.get("human_feedback"))
     print("=======================================\n")
 
-    prompt = f"""
-The human approved this draft itinerary.
+    # The user reviewed and approved state['itinerary'].
+    # To guarantee zero loss of detail, tables, descriptions, or day-by-day schedules,
+    # the approved itinerary is preserved 100% in full as the final publication plan.
+    approved_itinerary = state.get("itinerary", "")
 
-Produce the final polished travel plan based directly on this approved draft itinerary.
-
-Approved Draft Itinerary:
-{state['itinerary']}
-
-Budget notes:
-{state.get('budget_results', '')}
-
-IMPORTANT:
-- Maintain complete consistency across title, overview duration, schedule days, and total budget calculation as presented in the approved draft itinerary.
-- Do not revert to any previous trip duration or outdated budget totals.
-"""
-
-    result = _llm_text(
-        "You produce final user-ready travel plans.",
-        prompt,
-    )
-
-    print("\n========== FINAL RESPONSE ==========")
-    print(result)
-    print("====================================\n")
+    print("\n========== FINAL RESPONSE (FULL APPROVED ITINERARY) ==========")
+    print(approved_itinerary[:500] + ("..." if len(approved_itinerary) > 500 else ""))
+    print("===============================================================\n")
 
     return {
-        "final_response": result,
-        "messages": [AIMessage(content=result)],
-        "llm_calls": state.get("llm_calls", 0) + 1,
+        "final_response": approved_itinerary,
+        "messages": [AIMessage(content=approved_itinerary)],
+        "llm_calls": state.get("llm_calls", 0),
     }

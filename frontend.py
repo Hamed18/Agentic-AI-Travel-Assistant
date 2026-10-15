@@ -12,22 +12,22 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+from pdf_generator import create_pdf as generate_publication_pdf
+
 @st.cache_data
-def create_pdf(text):
-    import markdown
-    from fpdf import FPDF
-    safe_text = text.encode('latin-1', 'replace').decode('latin-1')
-    html = markdown.markdown(safe_text)
-    pdf = FPDF()
-    pdf.add_page()
+def create_pdf(text: str) -> bytes:
     try:
-        pdf.write_html(html)
-    except Exception:
+        return generate_publication_pdf(text)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        from fpdf import FPDF
         pdf = FPDF()
         pdf.add_page()
-        pdf.set_font("helvetica", size=12)
-        pdf.multi_cell(0, 10, safe_text)
-    return bytes(pdf.output())
+        pdf.set_font("helvetica", size=10)
+        clean = text.encode("ascii", "ignore").decode("ascii")
+        pdf.multi_cell(0, 5, clean)
+        return bytes(pdf.output())
 
 # --- Initialise session state & multi-thread chat store ---
 if "thread_id" not in st.session_state:
@@ -719,6 +719,16 @@ if st.session_state.get("chat_history"):
                     else:
                         draft = result.get("itinerary", "")
                     st.markdown(draft)
+                    if draft:
+                        draft_pdf = create_pdf(draft)
+                        st.download_button(
+                            label="📥 Download Draft Plan as PDF",
+                            data=draft_pdf,
+                            file_name="Draft_Travel_Plan.pdf",
+                            mime="application/pdf",
+                            key=f"download_draft_{st.session_state.thread_id}_{idx}"
+                        )
+
 
 # --- Handle Human Approval (Inline in Conversation above the bottom bar) ---
 if st.session_state.get("waiting_for_approval"):

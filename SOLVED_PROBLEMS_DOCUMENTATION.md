@@ -24,6 +24,8 @@ You can easily copy and paste this document or import it directly into **Google 
 | **6** | Conversation Disappearing When Switching Chats | Session State & Memory | Multi-thread session store (`chats`), state sync helpers, and `MemorySaver` fallback |
 | **7** | Smart Viewport Management: Top on New Chat & Auto-Scroll to Generation | UI / Viewport & Scroll | Staged DOM top-pinning on empty chat + immediate smooth auto-scroll to generation area during inference |
 | **8** | OpenRouter 402 Credit Exhaustion, Free Model 404s & Guardrail Rigidity | LLM / Model Infrastructure & Error Handling | Dynamic free model discovery (`nvidia/nemotron-3-super-120b`), token capping, resilient fallback routing, permissive guardrails, and graceful UI error states |
+| **9** | PDF Generator Breakdown: Word Merging, Raw Markdown Asterisks & Heading Promotion | PDF Engine & LLM Output Formatting | Comprehensive Unicode dash/space mapping table, markdown AST stripping, strict heading discrimination, and prompt hardening against meta-reasoning leakage |
+| **10** | PDF Missing Section Details & Truncated Final Response Resolution | Multi-Agent Pipeline & PDF Engine | Zero-loss `final_response_agent` preserving 100% of approved itinerary, flexible Day/Time/Activity regexes, backslash unescaping, and full-fidelity PDF compilation |
 
 ---
 
@@ -455,7 +457,41 @@ def _llm_text(system: str, prompt: str) -> str:
 
 ---
 
+## 9. 📑 Problem 10: PDF Missing Section Details & Truncated Final Response Resolution
+
+### ❌ Problem Description
+When users reviewed their draft itinerary in the Streamlit UI, it appeared complete with full tables, detailed day-by-day morning/afternoon/evening activity descriptions, locations, and budgets. However, upon approving the plan and generating the PDF, the resulting PDF was missing almost all details:
+1. Tables for flights, hotels, and weather were missing or reduced to single-sentence notes.
+2. Day-by-day schedules were reduced to single-line summaries (e.g. `Day 1 - Arrival & Iconic Skyline / Location: Downtown Dubai`), completely stripping out Morning, Afternoon, Evening, activity descriptions, and individual budgets.
+3. Day headings failed to render as Day Cards and appeared with generic thin blue bars.
+4. Literal markdown backslashes (`\*`) leaked onto the rendered PDF page.
+
+### 🔍 Root Cause Analysis
+1. **`final_response_agent` Summarization Bug**: In `agents.py`, when a user clicked "Approve", the workflow ran `final_response_agent`. Its prompt instructed the LLM: `"Produce the final polished travel plan based directly on this approved draft itinerary."` Without strict retention instructions, the LLM treated this as a prompt to produce an executive brief / high-level summary, stripping 80% of the content. `frontend.py` then passed this truncated summary to `create_pdf()`.
+2. **Fragile Day & Time Regexes**: In `pdf_generator.py`, `is_day_heading()` strictly matched `^#{1,3}\s+Day\s+\d+`. When the LLM produced unhashed lines or 4-hash lines (`Day 1 - ...` or `#### Day 1`), it failed detection and fell back to generic section headings. `is_time_of_day()` used strict string equality (`stripped in (...)`), causing time slots with subtitles (`### Morning: City Tour`) to be misclassified.
+3. **`fpdf2.table` Context Manager Bug**: In `fpdf2`, `pdf.table()` returns a `GeneratorContextManager`. Invoking `pdf.table(rows)` without a `with` statement returns a generator object without executing the drawing loop. Consequently, all tables (Flight, Hotel, Weather, Budget) were silently omitted from the PDF without triggering exceptions.
+4. **LLM Schema Prompt Omission**: In `agents.py`, `DAY_FORMAT_INSTRUCTIONS` previously lacked explicit table schemas for Flights, Hotels, Weather, and Budget, causing the LLM to occasionally emit unstructured text instead of pipe tables.
+5. **Horizontal Bar vs Pie Chart**: The budget distribution was previously drawn as a single horizontal stacked bar instead of an intuitive circular pie/donut chart.
+
+### 🛠️ Technical Solution & Code Implementation
+1. **Context-Managed Tables (`pdf_generator.py`)**:
+   - Replaced unexecuted generator calls with `with pdf.table(rows, ...): pass`.
+   - Explicitly reset `pdf.set_fill_color(255, 255, 255)` and `pdf.set_text_color(*pdf.SLATE_DARK)` prior to table rendering, preventing heading fill leakage into alternating rows.
+   - Styled headers with navy background (`#1E3A8A`), bold white text, and light slate alternating row backgrounds (`#F5F7FA`).
+2. **Modern Anti-Aliased Donut/Pie Chart (`pdf_generator.py`)**:
+   - Implemented `render_budget_pie_chart_image()` using `Pillow` at 3x supersampling with Lanczos downscaling.
+   - Designed a modern donut chart displaying the total budget in the center cutout and a color-coded legend with dollar amounts and exact percentages on the right.
+3. **Mandatory Table Prompt Enforcement (`agents.py`)**:
+   - Added explicit markdown table schemas for Flight Options, Hotel Recommendations, Weather Forecast, and Budget Summary into `DAY_FORMAT_INSTRUCTIONS`.
+4. **Zero-Loss Final Response (`agents.py`)**:
+   - Modified `final_response_agent` to preserve `state['itinerary']` 100% in full without calling an unconstrained LLM to summarize it.
+5. **Universal Download Access (`frontend.py`)**:
+   - Added PDF download buttons to both the Draft Itinerary and Final Polished Plan.
+
+---
+
 ## 📄 How to Open / Import This File in Google Docs
+
 1. **Option A (Direct Copy/Paste)**:
    - Open this file in your editor or view it in markdown.
    - Copy the text and paste it into a blank document at **[docs.google.com](https://docs.google.com)**. Google Docs will automatically preserve tables, headings, and code blocks.
