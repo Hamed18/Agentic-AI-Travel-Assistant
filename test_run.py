@@ -36,12 +36,13 @@ def _timed(name, fn):
     return wrapper
 
 # Patch each agent function
-for _name in ["supervisor_agent", "flight_agent", "hotel_agent",
+for _name in ["supervisor_agent", "parallel_specialists", "flight_agent", "hotel_agent",
               "weather_agent", "budget_agent", "itinerary_agent",
               "human_approval_agent", "final_response_agent"]:
-    _orig = getattr(_agents_module, _name)
-    _ORIGINAL_FUNCS[_name] = _orig
-    setattr(_agents_module, _name, _timed(_name, _orig))
+    if hasattr(_agents_module, _name):
+        _orig = getattr(_agents_module, _name)
+        _ORIGINAL_FUNCS[_name] = _orig
+        setattr(_agents_module, _name, _timed(_name, _orig))
 
 # Now import graph (which imports agents), so patched functions are used
 from graph import build_graph

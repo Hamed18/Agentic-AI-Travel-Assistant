@@ -12,6 +12,7 @@ from agents import (
     hotel_agent,
     human_approval_agent,
     itinerary_agent,
+    parallel_specialists,
     supervisor_agent,
     weather_agent,
 )
@@ -28,8 +29,11 @@ AGENT_ORDER = [
     "itinerary_agent",
 ]
 
+PARALLEL_SPECIALISTS = {"flight_agent", "hotel_agent", "weather_agent"}
+
 
 ROUTE_MAP = {
+    "parallel_specialists": "parallel_specialists",
     "flight_agent": "flight_agent",
     "hotel_agent": "hotel_agent",
     "weather_agent": "weather_agent",
@@ -48,8 +52,20 @@ def route_from_supervisor(state: TravelState) -> str:
     if state.get("is_valid") is False:
         return "__end__"
 
-    selected = _selected_agents(state)
-    return selected[0] if selected else "itinerary_agent"
+    selected = state.get("selected_agents") or []
+    # If any specialist (flight, hotel, weather) is requested, launch them concurrently
+    if any(agent in PARALLEL_SPECIALISTS for agent in selected):
+        return "parallel_specialists"
+    elif "budget_agent" in selected:
+        return "budget_agent"
+    return "itinerary_agent"
+
+
+def route_after_parallel_specialists(state: TravelState) -> str:
+    selected = state.get("selected_agents") or []
+    if "budget_agent" in selected:
+        return "budget_agent"
+    return "itinerary_agent"
 
 
 def route_after_agent(current_agent: str):
@@ -78,6 +94,7 @@ def build_graph():
 
     # Add nodes
     graph.add_node("supervisor", supervisor_agent)
+    graph.add_node("parallel_specialists", parallel_specialists)
     graph.add_node("flight_agent", flight_agent)
     graph.add_node("hotel_agent", hotel_agent)
     graph.add_node("weather_agent", weather_agent)
@@ -89,14 +106,24 @@ def build_graph():
     # Start -> Supervisor
     graph.add_edge(START, "supervisor")
 
-    # Supervisor -> selected agent
+    # Supervisor -> parallel_specialists / budget_agent / itinerary_agent
     graph.add_conditional_edges(
         "supervisor",
         route_from_supervisor,
         ROUTE_MAP,
     )
 
-    # Agent routing
+    # Parallel specialists -> budget_agent or itinerary_agent
+    graph.add_conditional_edges(
+        "parallel_specialists",
+        route_after_parallel_specialists,
+        {
+            "budget_agent": "budget_agent",
+            "itinerary_agent": "itinerary_agent",
+        },
+    )
+
+    # Agent routing (retained for backward compatibility)
     graph.add_conditional_edges(
         "flight_agent",
         route_after_agent("flight_agent"),
