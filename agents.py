@@ -22,7 +22,7 @@ llm = get_llm()
 _fallback_llm = get_fallback_llm()
 
 def _llm_text(system: str, prompt: str) -> str:
-    """Invoke LLM with automatic fallback to secondary model on rate-limit errors."""
+    """Invoke LLM with automatic fallback to secondary model on rate-limit or empty responses."""
     try:
         response = llm.invoke(
             [
@@ -30,7 +30,19 @@ def _llm_text(system: str, prompt: str) -> str:
                 HumanMessage(content=prompt),
             ]
         )
-        return response.content
+        content = response.content if isinstance(response.content, str) else ""
+        if not content.strip() and hasattr(response, "additional_kwargs"):
+            content = str(response.additional_kwargs.get("reasoning_content") or "")
+        if not content.strip():
+            print("\n[LLM FALLBACK] Primary model returned empty content. Invoking fallback model...\n")
+            response = _fallback_llm.invoke(
+                [
+                    SystemMessage(content=system),
+                    HumanMessage(content=prompt),
+                ]
+            )
+            content = response.content if isinstance(response.content, str) else ""
+        return content
     except (RateLimitError, APIStatusError) as e:
         error_code = getattr(e, 'status_code', None)
         # 429 = rate limit, 402 = out of credits — try fallback model
@@ -43,7 +55,7 @@ def _llm_text(system: str, prompt: str) -> str:
                     HumanMessage(content=prompt),
                 ]
             )
-            return response.content
+            return response.content if isinstance(response.content, str) else ""
         raise
 
 
