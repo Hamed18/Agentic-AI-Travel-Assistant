@@ -141,6 +141,18 @@ export default function Sidebar({
               <span className="text-slate-300 font-medium">Automatic &amp; Secure</span>
             </div>
           </div>
+
+          <div className="text-center pt-0.5 text-[10px] text-slate-500">
+            Developed by{" "}
+            <a
+              href="https://www.linkedin.com/in/devhamed/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-400 hover:text-blue-300 underline underline-offset-2 font-medium transition-colors"
+            >
+              Hamed Hasan
+            </a>
+          </div>
         </div>
       </aside>
     </>

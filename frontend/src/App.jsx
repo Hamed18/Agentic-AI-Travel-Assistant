@@ -508,8 +508,16 @@ export default function App() {
               </button>
             </form>
 
-            <div className="text-center mt-1.5 sm:mt-2 text-[10px] text-slate-500 hidden sm:block">
-              <span className="font-semibold text-slate-300">Saga<span className="text-blue-400">Traveller</span></span> · Smart AI Travel Concierge · Crafted for seamless journeys
+            <div className="text-center mt-1.5 sm:mt-2 text-[10px] text-slate-500">
+              Developed by{" "}
+              <a
+                href="https://www.linkedin.com/in/devhamed/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-blue-400 hover:text-blue-300 underline underline-offset-2 transition-colors"
+              >
+                Hamed Hasan
+              </a>
             </div>
           </div>
         </div>
