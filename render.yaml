@@ -7,7 +7,8 @@ services:
   - type: web
     name: agentic-travel-assistant-backend
     env: docker
-    dockerfilePath: ./Dockerfile
+    rootDir: backend
+    dockerfilePath: Dockerfile
     plan: free
     region: oregon # or frankfurt, singapore, ohio
     healthCheckPath: /health

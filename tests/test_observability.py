@@ -5,8 +5,15 @@ Usage:
 """
 
 import sys
+import os
 import uuid
 import time
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BACKEND_DIR = os.path.join(ROOT_DIR, "backend")
+if BACKEND_DIR not in sys.path:
+    sys.path.insert(0, BACKEND_DIR)
+
 sys.stdout.reconfigure(encoding="utf-8")
 
 import observability

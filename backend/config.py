@@ -5,6 +5,11 @@ from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_groq import ChatGroq
 
+# Support loading .env from both local backend/ and root directory
+BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.dirname(BACKEND_DIR)
+load_dotenv(os.path.join(BACKEND_DIR, ".env"))
+load_dotenv(os.path.join(ROOT_DIR, ".env"))
 load_dotenv()
 
 def get_secret(key: str, default: str = None) -> str:
@@ -56,7 +61,7 @@ def _create_groq_llm(model: str, max_tokens: int = 4096, timeout: float = 25.0):
     )
 
 
-def _create_gemini_llm(max_tokens: int = 4096, timeout: float = 30.0):
+def _create_gemini_llm(max_tokens: int = 4096, timeout: float = 35.0):
     if not GEMINI_API_KEY:
         return None
     return ChatOpenAI(
@@ -65,7 +70,7 @@ def _create_gemini_llm(max_tokens: int = 4096, timeout: float = 30.0):
         base_url=GEMINI_BASE_URL,
         max_tokens=max_tokens,
         timeout=timeout,
-        max_retries=1,
+        max_retries=2,
     )
 
 
@@ -86,8 +91,8 @@ class DistributedLLM:
 
         if self.tier == "fast":
             # Fast tier: Groq Qwen 27B (~1.8s) -> Gemini 3.5 Flash Lite (~6.8s)
-            groq_client = _create_groq_llm(GROQ_FAST_MODEL, max_tokens=1024, timeout=12.0)
-            gemini_client = _create_gemini_llm(max_tokens=2048, timeout=20.0)
+            groq_client = _create_groq_llm(GROQ_FAST_MODEL, max_tokens=1024, timeout=15.0)
+            gemini_client = _create_gemini_llm(max_tokens=2048, timeout=35.0)
             if groq_client:
                 candidates.append(("Groq (Qwen 27B)", groq_client))
             if gemini_client:
@@ -95,7 +100,7 @@ class DistributedLLM:
         else:
             # Heavy tier: Groq GPT-OSS 120B (~3.5s) -> Gemini 3.5 Flash Lite (~6.8s)
             groq_client = _create_groq_llm(GROQ_HEAVY_MODEL, max_tokens=4096, timeout=25.0)
-            gemini_client = _create_gemini_llm(max_tokens=4096, timeout=30.0)
+            gemini_client = _create_gemini_llm(max_tokens=4096, timeout=40.0)
             if groq_client:
                 candidates.append(("Groq (GPT-OSS 120B)", groq_client))
             if gemini_client:

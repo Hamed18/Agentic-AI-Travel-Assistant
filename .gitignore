@@ -29,6 +29,12 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Frontend builds & dependencies
+node_modules/
+dist/
+frontend/node_modules/
+frontend/dist/
+
 # Scratch & Temporary test files
 scratch*
 *.log
