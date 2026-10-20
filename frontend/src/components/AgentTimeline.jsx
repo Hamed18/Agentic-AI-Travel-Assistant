@@ -1,7 +1,30 @@
 import React from "react";
-import { CheckCircle2, Loader2, Clock, Plane, Hotel, CloudSun, Calculator, MapPin, UserCheck, Compass } from "lucide-react";
+import { CheckCircle2, Loader2, Clock, Plane, Hotel, CloudSun, Calculator, MapPin, UserCheck, Compass, Sparkles } from "lucide-react";
 
-export default function AgentTimeline({ stages, activeStage, isInterrupted, error }) {
+export default function AgentTimeline({ stages = {}, intent = "trip_planning", error }) {
+  // Direct response fast-path indicator (for greetings, emergency, situational, how-to)
+  if (intent && intent !== "trip_planning") {
+    return (
+      <div className="bg-[#131b2e] border border-blue-500/30 rounded-2xl p-4 my-3 shadow-xl backdrop-blur-sm animate-pulse">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-400 flex items-center justify-center shadow-lg shadow-blue-500/20 text-white flex-shrink-0">
+            <Compass className="w-5 h-5 animate-spin" />
+          </div>
+          <div className="min-w-0">
+            <h4 className="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5">
+              <span>SagaTraveller Concierge Answering</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping" />
+            </h4>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              Formulating practical travel guidance and verified recommendations...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Multi-agent trip planning progress stages
   const stageDefs = [
     {
       id: "supervisor",
@@ -35,8 +58,30 @@ export default function AgentTimeline({ stages, activeStage, isInterrupted, erro
     },
   ];
 
+  // Calculate live progress percentage and active micro-status for user trust
+  let progressPercent = 15;
+  let microStatus = "Analyzing travel preferences...";
+
+  if (stages.human_approval === "running" || stages.human_approval === "complete") {
+    progressPercent = 100;
+    microStatus = "Personal plan ready for your review!";
+  } else if (stages.itinerary_agent === "running" || stages.itinerary_agent === "complete") {
+    progressPercent = 88;
+    microStatus = "Structuring day-by-day morning, afternoon & evening activities...";
+  } else if (stages.budget_agent === "running" || stages.budget_agent === "complete") {
+    progressPercent = 68;
+    microStatus = "Optimizing budget breakdown and estimating category totals...";
+  } else if (stages.parallel_specialists === "running" || stages.parallel_specialists === "complete") {
+    progressPercent = 42;
+    microStatus = "Searching live flight options, hotel accommodations & weather trends...";
+  } else if (stages.supervisor === "complete") {
+    progressPercent = 25;
+    microStatus = "Destination preferences locked. Dispatching specialist agents...";
+  }
+
   return (
     <div className="bg-[#131b2e] border border-[#1e293b] rounded-2xl p-3.5 sm:p-4 my-3 shadow-xl backdrop-blur-sm">
+      {/* Header with Title and Pulse */}
       <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[#1e293b] mb-3">
         <div className="flex items-center gap-2">
           <div className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse flex-shrink-0" />
@@ -44,11 +89,30 @@ export default function AgentTimeline({ stages, activeStage, isInterrupted, erro
             Trip Planning in Progress
           </h3>
         </div>
-        <span className="text-[10px] sm:text-[11px] font-medium text-blue-400 bg-blue-500/10 px-2.5 py-0.5 rounded-full border border-blue-500/20">
-          Live Search Active
+        <span className="text-[10px] sm:text-[11px] font-medium text-blue-400 bg-blue-500/10 px-2.5 py-0.5 rounded-full border border-blue-500/20 flex items-center gap-1">
+          <Sparkles className="w-3 h-3 text-blue-400" />
+          <span>Live Orchestration Active</span>
         </span>
       </div>
 
+      {/* Trust-Building Progress Meter */}
+      <div className="mb-4 bg-[#0d1424] p-3 rounded-xl border border-[#1e293b]">
+        <div className="flex items-center justify-between text-[11px] mb-1.5">
+          <span className="text-slate-300 font-medium flex items-center gap-1.5">
+            <Loader2 className="w-3.5 h-3.5 text-blue-400 animate-spin" />
+            <span className="truncate">{microStatus}</span>
+          </span>
+          <span className="text-blue-400 font-bold">{progressPercent}%</span>
+        </div>
+        <div className="w-full h-2 bg-[#131b2e] rounded-full overflow-hidden border border-white/5">
+          <div
+            className="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-sky-400 transition-all duration-500 rounded-full"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Stage Breakdown Cards */}
       <div className="space-y-2">
         {stageDefs.map((def) => {
           const status = stages[def.id] || "pending";
@@ -93,7 +157,7 @@ export default function AgentTimeline({ stages, activeStage, isInterrupted, erro
                         : "text-slate-600"
                     }`}
                   >
-                    {status === "complete" ? "Completed" : status === "running" ? "Searching..." : "Upcoming"}
+                    {status === "complete" ? "Completed" : status === "running" ? "In Progress..." : "Upcoming"}
                   </span>
                 </div>
 

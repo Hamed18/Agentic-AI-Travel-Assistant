@@ -22,6 +22,10 @@ class TravelState(TypedDict, total=False):
     approved: bool
 
     final_response: str
+    direct_response: str
+    intent: str
+    response_type: str
+    active_stages: list[str]
     llm_calls: int
     is_valid: bool
 

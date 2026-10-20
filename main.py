@@ -206,9 +206,15 @@ async def stream_chat(req: ChatRequest):
 
                         if node_name == "supervisor":
                             stage_payload["is_valid"] = node_update.get("is_valid", True)
+                            stage_payload["intent"] = node_update.get("intent", "trip_planning")
+                            stage_payload["response_type"] = node_update.get("response_type", "chat")
                             stage_payload["selected_agents"] = node_update.get("selected_agents", [])
                             stage_payload["trip_constraints"] = node_update.get("trip_constraints", {})
                             stage_payload["reasoning"] = node_update.get("supervisor_reasoning", "")
+                            stage_payload["direct_response"] = node_update.get("direct_response", "")
+
+                        elif node_name == "direct_response":
+                            stage_payload["final_response"] = node_update.get("final_response", "")
 
                         elif node_name == "parallel_specialists":
                             stage_payload["has_flights"] = bool(node_update.get("flight_results"))
@@ -241,13 +247,17 @@ async def stream_chat(req: ChatRequest):
                     })
                 }
             else:
-                final = latest_state.get("final_response") or latest_state.get("itinerary", "")
+                final = latest_state.get("final_response") or latest_state.get("direct_response") or latest_state.get("itinerary", "")
+                intent = latest_state.get("intent", "trip_planning")
+                resp_type = latest_state.get("response_type", "itinerary" if latest_state.get("itinerary") else "chat")
                 yield {
                     "event": "complete",
                     "data": json.dumps({
                         "thread_id": thread_id,
                         "final_response": final,
-                        "itinerary": latest_state.get("itinerary", "")
+                        "itinerary": latest_state.get("itinerary", ""),
+                        "intent": intent,
+                        "response_type": resp_type,
                     })
                 }
 

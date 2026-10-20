@@ -7,6 +7,7 @@ from langgraph.graph import END, START, StateGraph
 
 from agents import (
     budget_agent,
+    direct_response_agent,
     final_response_agent,
     flight_agent,
     hotel_agent,
@@ -33,6 +34,7 @@ PARALLEL_SPECIALISTS = {"flight_agent", "hotel_agent", "weather_agent"}
 
 
 ROUTE_MAP = {
+    "direct_response": "direct_response",
     "parallel_specialists": "parallel_specialists",
     "flight_agent": "flight_agent",
     "hotel_agent": "hotel_agent",
@@ -49,8 +51,14 @@ def _selected_agents(state: TravelState) -> list[str]:
 
 
 def route_from_supervisor(state: TravelState) -> str:
+    # If blocked by guardrail or invalid, route directly to direct_response
     if state.get("is_valid") is False:
-        return "__end__"
+        return "direct_response"
+
+    intent = state.get("intent", "trip_planning")
+    # Fast path for conversational, advisory, situational, or emergency queries
+    if intent in ("greeting", "capability_help", "in_trip_situational", "health_safety_emergency", "activity_how_to", "blocked"):
+        return "direct_response"
 
     selected = state.get("selected_agents") or []
     # If any specialist (flight, hotel, weather) is requested, launch them concurrently
@@ -94,6 +102,7 @@ def build_graph():
 
     # Add nodes
     graph.add_node("supervisor", supervisor_agent)
+    graph.add_node("direct_response", direct_response_agent)
     graph.add_node("parallel_specialists", parallel_specialists)
     graph.add_node("flight_agent", flight_agent)
     graph.add_node("hotel_agent", hotel_agent)
@@ -105,6 +114,8 @@ def build_graph():
 
     # Start -> Supervisor
     graph.add_edge(START, "supervisor")
+    # Direct response -> END
+    graph.add_edge("direct_response", END)
 
     # Supervisor -> parallel_specialists / budget_agent / itinerary_agent
     graph.add_conditional_edges(

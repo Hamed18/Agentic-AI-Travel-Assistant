@@ -39,6 +39,7 @@ export default function App() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
   const [healthStatus, setHealthStatus] = useState(null);
+  const [currentIntent, setCurrentIntent] = useState("trip_planning");
 
   // Active stage states for timeline
   const [activeStages, setActiveStages] = useState({
@@ -175,6 +176,7 @@ export default function App() {
 
     setInputQuery("");
     setIsStreaming(true);
+    setCurrentIntent("trip_planning");
 
     // Reset timeline stages to running
     setActiveStages({
@@ -206,11 +208,23 @@ export default function App() {
         // Handle LangGraph stage completions
         if (event === "node_complete" && data?.node) {
           const node = data.node;
+          if (data.intent) {
+            setCurrentIntent(data.intent);
+          }
+
           setActiveStages((prev) => {
             const next = { ...prev, [node]: "complete" };
-            if (node === "supervisor") next.parallel_specialists = "running";
-            else if (node === "parallel_specialists") next.budget_agent = "running";
-            else if (node === "budget_agent") next.itinerary_agent = "running";
+            if (node === "supervisor") {
+              if (data.intent && data.intent !== "trip_planning") {
+                // Direct response fast path: specialist stages are skipped
+              } else {
+                next.parallel_specialists = "running";
+              }
+            } else if (node === "parallel_specialists") {
+              next.budget_agent = "running";
+            } else if (node === "budget_agent") {
+              next.itinerary_agent = "running";
+            }
             return next;
           });
 
@@ -244,7 +258,7 @@ export default function App() {
           setIsStreaming(false);
         }
 
-        // Handle Final Plan Completion
+        // Handle Final Plan / Chat Completion
         if (event === "complete") {
           setActiveStages({
             supervisor: "complete",
@@ -255,6 +269,8 @@ export default function App() {
           });
 
           const final = data.final_response || data.itinerary;
+          const isDirectChat = data.response_type === "chat" || (data.intent && data.intent !== "trip_planning");
+
           updateCurrentThread((t) => ({
             ...t,
             isInterrupted: false,
@@ -262,7 +278,7 @@ export default function App() {
               ...t.messages,
               {
                 role: "assistant",
-                type: "final_plan",
+                type: isDirectChat ? "chat" : "final_plan",
                 content: final,
               },
             ],
@@ -444,7 +460,7 @@ export default function App() {
 
           {/* Real-time Agent Execution Timeline */}
           {isStreaming && (
-            <AgentTimeline stages={activeStages} />
+            <AgentTimeline stages={activeStages} intent={currentIntent} />
           )}
 
           {/* Human-in-the-Loop Review & Approval Card */}

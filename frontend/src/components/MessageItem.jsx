@@ -11,12 +11,13 @@ export default function MessageItem({ message }) {
   // Detect if message contains a complete itinerary eligible for publication PDF
   const hasItinerary =
     !isUser &&
+    message.type === "final_plan" &&
     message.content &&
     (message.content.includes("## 1️⃣ FLIGHT OPTIONS") ||
       message.content.includes("## FLIGHT OPTIONS") ||
       message.content.includes("## OVERALL BUDGET SUMMARY") ||
-      message.type === "final_plan" ||
-      message.type === "draft_plan");
+      message.content.includes("Day 1") ||
+      message.content.includes("Day 2"));
 
   const handleDownload = async () => {
     if (downloading) return;
@@ -51,7 +52,7 @@ export default function MessageItem({ message }) {
         }`}
       >
         {/* Header Indicator for Assistant Plans */}
-        {!isUser && message.type === "final_plan" && (
+        {!isUser && hasItinerary && message.type === "final_plan" && (
           <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-3 border-b border-[#1e293b]">
             <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-xs uppercase tracking-wider">
               <Sparkles className="w-4 h-4 text-emerald-400 flex-shrink-0" />
