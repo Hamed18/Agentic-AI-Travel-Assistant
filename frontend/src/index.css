@@ -1,0 +1,89 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    background-color: #090d16;
+    color: #e2e8f0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+  }
+}
+
+/* Custom modern scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #090d16;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+/* Markdown Pipe Tables Styling */
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.25rem 0;
+  font-size: 0.88rem;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+}
+
+.markdown-content th {
+  background-color: #1e3a8a;
+  color: #ffffff;
+  font-weight: 700;
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border: 1px solid #1e293b;
+}
+
+.markdown-content td {
+  padding: 0.65rem 1rem;
+  border: 1px solid #1e293b;
+  color: #cbd5e1;
+}
+
+.markdown-content tr:nth-child(even) {
+  background-color: #0f172a;
+}
+
+.markdown-content tr:nth-child(odd) {
+  background-color: #131b2e;
+}
+
+.markdown-content tr:hover {
+  background-color: #1e293b;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3 {
+  color: #f1f5f9;
+  font-weight: 700;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.markdown-content h1 { font-size: 1.5rem; border-bottom: 1px solid #1e293b; padding-bottom: 0.5rem; }
+.markdown-content h2 { font-size: 1.25rem; color: #60a5fa; }
+.markdown-content h3 { font-size: 1.05rem; color: #93c5fd; }
+
+.markdown-content ul,
+.markdown-content ol {
+  padding-left: 1.5rem;
+  margin: 0.75rem 0;
+}
+
+.markdown-content li {
+  margin: 0.35rem 0;
+}

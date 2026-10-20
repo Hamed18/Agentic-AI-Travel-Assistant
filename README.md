@@ -302,6 +302,34 @@ The backend is fully containerized and includes a Render Blueprint specification
 
 ---
 
+# Frontend Deployment on Vercel (React.js SPA)
+
+The frontend is a modern, responsive single-page application built with **React 19 + Vite + Tailwind CSS + Lucide React**.
+
+### Local Development:
+```powershell
+# 1. Start the FastAPI backend (in one terminal)
+uvicorn main:app --port 8000
+
+# 2. Start the React frontend (in another terminal)
+cd frontend
+npm install
+npm run dev
+```
+Open **`http://localhost:5173`** in your browser.
+
+### Deploy to Vercel:
+1. Log in to [vercel.com](https://vercel.com) and click **Add New...** ➔ **Project**.
+2. Import your GitHub repository: `Hamed18/Agentic-AI-Travel-Assistant`.
+3. In the project configuration:
+   - **Framework Preset**: `Vite`
+   - **Root Directory**: `frontend` (Click *Edit* and select the `frontend` folder).
+   - **Environment Variables**:
+     - `VITE_API_URL`: Your live Render backend URL (e.g. `https://agentic-travel-assistant-backend.onrender.com`).
+4. Click **Deploy**. Vercel will build the frontend and serve it on a custom `*.vercel.app` domain with global edge caching and instant updates on git push.
+
+---
+
 # how to run in fewer commands:
 To run this project from scratch (for example, if you restart your computer or open a new terminal), you only need to run a couple of commands because all the heavy lifting (database setup, dependency installation, and MCP server configuration) is already done!
 
