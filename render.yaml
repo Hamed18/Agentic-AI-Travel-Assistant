@@ -1,0 +1,61 @@
+# ==============================================================================
+# render.yaml - Render Blueprint Specification
+# Infrastructure-as-Code for 1-Click Zero-Downtime Deployment
+# ==============================================================================
+
+services:
+  - type: web
+    name: agentic-travel-assistant-backend
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: oregon # or frankfurt, singapore, ohio
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 10000
+
+      # Distributed Multi-Provider LLMs
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+
+      # Specialist Tools APIs
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: AVIATION_STACK_API_KEY
+        sync: false
+      - key: OPENWEATHER_API_KEY
+        sync: false
+
+      # PostgreSQL Database (Neon Cloud)
+      - key: DATABASE_URL
+        sync: false
+
+      # Observability: LangSmith Tracing
+      - key: LANGCHAIN_TRACING_V2
+        value: "true"
+      - key: LANGCHAIN_PROJECT
+        value: "Agentic-AI-Travel-Assistant"
+      - key: LANGCHAIN_API_KEY
+        sync: false
+      - key: LANGCHAIN_ENDPOINT
+        value: "https://api.smith.langchain.com"
+
+      # Observability: Langfuse Analytics
+      - key: LANGFUSE_PUBLIC_KEY
+        sync: false
+      - key: LANGFUSE_SECRET_KEY
+        sync: false
+      - key: LANGFUSE_BASE_URL
+        value: "https://jp.cloud.langfuse.com"
+
+      # Observability: Sentry Error Reporting (Optional)
+      - key: SENTRY_DSN
+        sync: false
+
+      # CORS Configuration (Vercel Frontend)
+      - key: ALLOWED_ORIGINS
+        value: "https://*.vercel.app,http://localhost:5173,http://localhost:3000"

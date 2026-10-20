@@ -289,6 +289,19 @@ SENTRY_DSN=your_sentry_project_dsn
 
 ---
 
+# Backend Deployment on Render (Docker Blueprint)
+
+The backend is fully containerized and includes a Render Blueprint specification (`render.yaml`) for 1-click cloud deployment.
+
+### Deploy Steps:
+1. Push your repository to GitHub.
+2. Log in to [render.com](https://render.com) and click **New +** ➔ **Blueprint**.
+3. Select your repository: `Hamed18/Agentic-AI-Travel-Assistant`.
+4. Render automatically reads `render.yaml`, configures the Docker environment, sets the health check path (`/health`), and prompts for your API keys (`GROQ_API_KEY`, `GEMINI_API_KEY`, `TAVILY_API_KEY`, `AVIATION_STACK_API_KEY`, `OPENWEATHER_API_KEY`, `DATABASE_URL`, `LANGCHAIN_API_KEY`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`).
+5. Click **Apply Blueprint**. Render will build the container, start Uvicorn on port `10000`, and provide your live backend URL (e.g., `https://agentic-travel-assistant-backend.onrender.com`).
+
+---
+
 # how to run in fewer commands:
 To run this project from scratch (for example, if you restart your computer or open a new terminal), you only need to run a couple of commands because all the heavy lifting (database setup, dependency installation, and MCP server configuration) is already done!
 
