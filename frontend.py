@@ -4,6 +4,7 @@ import streamlit.components.v1 as components
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.types import Command
 from graph import app
+from observability import get_callbacks
 
 st.set_page_config(
     page_title="MULTI-AGENT Personalized TRAVEL Assistant",
@@ -535,7 +536,10 @@ with st.sidebar:
 if "user_id" not in dir():
     user_id = "demo_user"
 
-config = {"configurable": {"thread_id": st.session_state.thread_id}}
+config = {
+    "configurable": {"thread_id": st.session_state.thread_id},
+    "callbacks": get_callbacks(session_id=st.session_state.thread_id, user_id=user_id)
+}
 
 # --- Hero Section Banner ---
 st.markdown('<div id="top-anchor"></div>', unsafe_allow_html=True)

@@ -47,6 +47,7 @@ for _name in ["supervisor_agent", "parallel_specialists", "flight_agent", "hotel
 # Now import graph (which imports agents), so patched functions are used
 from graph import build_graph
 from pdf_generator import create_pdf
+from observability import get_callbacks
 
 # ─── test cases ───────────────────────────────────────────────────────────────
 
@@ -91,7 +92,10 @@ def run_query(query: str, query_index: int):
         t_total_start = time.perf_counter()
 
         output = None
-        config = {"configurable": {"thread_id": thread_id}}
+        config = {
+            "configurable": {"thread_id": thread_id},
+            "callbacks": get_callbacks(session_id=thread_id, user_id="benchmark_tester")
+        }
 
         # ── First pass: run until interrupt (human_approval_agent) ────────────
         for chunk in app.stream(initial_state, config=config, stream_mode="values"):

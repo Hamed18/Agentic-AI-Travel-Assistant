@@ -208,6 +208,84 @@ Run:
 - Real-Time Travel Planning
 - Human in the loop
 - Guardrails
+- **Enterprise Observability & Tracing**: LangSmith DAG visualization, Langfuse token & cost analytics, and Sentry runtime crash monitoring
+
+---
+
+# Observability, Tracing & Monitoring Stack
+
+The system incorporates an enterprise-grade multi-layer observability architecture designed to track multi-agent execution, latency bottlenecks, token consumption, cost analytics, and runtime exceptions.
+
+## Features Added
+
+### 1. LangSmith Tracing
+- **Multi-Agent DAG Visualization**: Real-time graph execution visualization across LangGraph nodes (`supervisor_agent`, `parallel_specialists`, `budget_agent`, `itinerary_agent`, `human_approval_agent`, and `final_response_agent`).
+- **State Transition Inspection**: Full visibility into intermediate state payloads passed across the pipeline.
+- **Failover Tracing**: Real-time auditing of distributed model routing from Groq LPU (`qwen/qwen3.8-27b` / `openai/gpt-oss-120b`) to Google Gemini (`gemini-3.5-flash-lite`).
+- **Prompt & Output Audit**: Granular inspection of prompts, token counts, and completions.
+
+### 2. Langfuse Analytics (v5)
+- **Token & Cost Analytics**: Real-time cost estimation per trip generation based on actual token usage.
+- **Latency Breakdown Waterfall**: Precise per-agent and per-tool duration metrics (identifying slow MCP tool calls vs LLM synthesis).
+- **Session & User Tracking**: Grouping traces by `session_id` and `user_id` to trace continuous user interactions across revisions.
+- **Direct Cloud Telemetry**: Real-time streaming to the regional cloud endpoint (`https://jp.cloud.langfuse.com`).
+
+### 3. Sentry Crash & Error Guard
+- **Automated Exception Capture**: Intercepts unhandled errors, socket disconnects, and database connection drops with full stack traces.
+- **Runtime Breadcrumbs**: Logs prior operations leading up to a failure for rapid debugging in deployed production environments.
+
+---
+
+## How to Run Observability
+
+### 1. Running Locally
+
+#### A. Run Dedicated Observability Verification Test:
+Execute the standalone test script to verify that traces are successfully delivered to both LangSmith and Langfuse:
+```powershell
+.\.venv\Scripts\python.exe test_observability.py
+```
+This runs an isolated query through the Distributed LLM tier, triggers callbacks, and outputs verification links.
+
+#### B. Run the Local Web App with Live Tracing:
+```powershell
+streamlit run frontend.py
+```
+Every prompt submitted through the UI automatically attaches `get_callbacks()` from `observability.py`. Traces for each agent step will immediately appear in your cloud dashboards.
+
+#### C. Local Dashboard Access:
+- **LangSmith**: Open [https://smith.langchain.com](https://smith.langchain.com) ➔ Select project **`Agentic-AI-Travel-Assistant`**.
+- **Langfuse**: Open [https://jp.cloud.langfuse.com](https://jp.cloud.langfuse.com) ➔ Select project **`travel-assistant`** ➔ Click **Traces**.
+- **Sentry**: Open [https://sentry.io](https://sentry.io) to review active issues.
+
+---
+
+### 2. Running in Production Deployed URL (Render + Vercel)
+
+When deploying the backend to **Render** (Docker container) and frontend to **Vercel**:
+
+#### Step 1: Set Environment Variables in Render Dashboard
+Under your Render Web Service ➔ **Environment**:
+```env
+# LangSmith
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_PROJECT=Agentic-AI-Travel-Assistant
+LANGCHAIN_API_KEY=your_langsmith_api_key
+LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
+
+# Langfuse
+LANGFUSE_PUBLIC_KEY=your_langfuse_public_key
+LANGFUSE_SECRET_KEY=your_langfuse_secret_key
+LANGFUSE_BASE_URL=https://jp.cloud.langfuse.com
+
+# Sentry (Optional for error alerting)
+SENTRY_DSN=your_sentry_project_dsn
+```
+
+#### Step 2: Automatic Production Tracing
+- `observability.py` automatically detects these environment variables at container startup.
+- All live production requests made to your deployed backend URL (`https://your-app.onrender.com/api/...`) stream real-time telemetry to LangSmith and Langfuse.
+- If any specialist agent times out, hits rate limits, or crashes in production, Sentry and Langfuse record the exact failure point, input parameters, and stack trace without needing SSH or server access.
 
 ---
 
