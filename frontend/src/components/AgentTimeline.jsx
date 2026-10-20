@@ -1,37 +1,37 @@
 import React from "react";
-import { CheckCircle2, Loader2, Clock, Plane, Hotel, CloudSun, Calculator, MapPin, UserCheck, ShieldAlert } from "lucide-react";
+import { CheckCircle2, Loader2, Clock, Plane, Hotel, CloudSun, Calculator, MapPin, UserCheck, Compass } from "lucide-react";
 
 export default function AgentTimeline({ stages, activeStage, isInterrupted, error }) {
   const stageDefs = [
     {
       id: "supervisor",
-      label: "Supervisor Guardrail & Routing",
-      icon: ShieldAlert,
-      desc: "Validates trip intent, extracts destination & coordinates specialists",
+      label: "Trip Preferences & Destination Analysis",
+      icon: Compass,
+      desc: "Analyzing destination, trip duration, travel style & personal preferences",
     },
     {
       id: "parallel_specialists",
-      label: "Parallel Specialists",
+      label: "Live Travel Research",
       icon: Plane,
-      desc: "Concurrently executes Flight MCP, Hotel Search & Weather MCP tools",
+      desc: "Simultaneously searching live flights, verified hotels & local weather forecasts",
     },
     {
       id: "budget_agent",
-      label: "Budget Math Engine",
+      label: "Smart Budget Allocation",
       icon: Calculator,
-      desc: "Computes itemized allocations, flights, lodging & activity reserves",
+      desc: "Optimizing itemized costs for flights, hotels, dining & sightseeing activities",
     },
     {
       id: "itinerary_agent",
-      label: "Itinerary Synthesis",
+      label: "Personalized Daily Schedule",
       icon: MapPin,
-      desc: "Generates multi-day itinerary with Morning, Afternoon & Evening schedules",
+      desc: "Crafting day-by-day morning, afternoon & evening experiences",
     },
     {
       id: "human_approval",
-      label: "Human Review & Approval",
+      label: "Personal Plan Review",
       icon: UserCheck,
-      desc: "Pauses execution for your personal review, approval or custom revisions",
+      desc: "Ready for your review — approve the plan or request any custom adjustments",
     },
   ];
 
@@ -41,11 +41,11 @@ export default function AgentTimeline({ stages, activeStage, isInterrupted, erro
         <div className="flex items-center gap-2">
           <div className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse flex-shrink-0" />
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200">
-            Multi-Agent Pipeline Execution
+            Trip Planning in Progress
           </h3>
         </div>
         <span className="text-[10px] sm:text-[11px] font-medium text-blue-400 bg-blue-500/10 px-2.5 py-0.5 rounded-full border border-blue-500/20">
-          Groq LPUs Concurrency
+          Live Search Active
         </span>
       </div>
 
@@ -93,7 +93,7 @@ export default function AgentTimeline({ stages, activeStage, isInterrupted, erro
                         : "text-slate-600"
                     }`}
                   >
-                    {status}
+                    {status === "complete" ? "Completed" : status === "running" ? "Searching..." : "Upcoming"}
                   </span>
                 </div>
 
@@ -101,17 +101,17 @@ export default function AgentTimeline({ stages, activeStage, isInterrupted, erro
                   {def.desc}
                 </p>
 
-                {/* Detailed Badges if Stage is Complete or Running */}
+                {/* Sub-Badges for Specialists */}
                 {def.id === "parallel_specialists" && status === "complete" && (
                   <div className="flex flex-wrap items-center gap-1.5 mt-2 pt-1.5 border-t border-[#1e293b]/50 text-[10px]">
                     <span className="flex items-center gap-1 text-slate-300 bg-[#1a2540] px-2 py-0.5 rounded-md border border-[#2d3f5e]">
-                      <Plane className="w-3 h-3 text-sky-400" /> Flights
+                      <Plane className="w-3 h-3 text-sky-400" /> Flights Found
                     </span>
                     <span className="flex items-center gap-1 text-slate-300 bg-[#1a2540] px-2 py-0.5 rounded-md border border-[#2d3f5e]">
-                      <Hotel className="w-3 h-3 text-amber-400" /> Hotels
+                      <Hotel className="w-3 h-3 text-amber-400" /> Hotels Evaluated
                     </span>
                     <span className="flex items-center gap-1 text-slate-300 bg-[#1a2540] px-2 py-0.5 rounded-md border border-[#2d3f5e]">
-                      <CloudSun className="w-3 h-3 text-emerald-400" /> Forecast
+                      <CloudSun className="w-3 h-3 text-emerald-400" /> Weather Analyzed
                     </span>
                   </div>
                 )}
@@ -123,8 +123,7 @@ export default function AgentTimeline({ stages, activeStage, isInterrupted, erro
 
       {error && (
         <div className="mt-3 p-3 bg-red-950/40 border border-red-500/30 rounded-xl text-xs text-red-300 flex items-center gap-2">
-          <ShieldAlert className="w-4 h-4 text-red-400 flex-shrink-0" />
-          <span>Error in agent pipeline: {error}</span>
+          <span>Notice: {error}</span>
         </div>
       )}
     </div>

@@ -22,7 +22,7 @@ export default function HumanApprovalCard({ onDecision, isSubmitting, isRevision
         </div>
         <div>
           <h4 className="text-xs sm:text-sm font-bold text-white tracking-wide">
-            {isRevision ? "Review Revised Travel Plan" : "Human Approval Required"}
+            {isRevision ? "Review Revised Travel Plan" : "Review Draft Itinerary"}
           </h4>
           <p className="text-[11px] sm:text-xs text-slate-400">
             Review the drafted itinerary above. You can finalize it now or provide custom adjustments.
@@ -78,7 +78,7 @@ export default function HumanApprovalCard({ onDecision, isSubmitting, isRevision
                 <Edit3 className="w-3.5 h-3.5 text-indigo-400" /> No, revise with feedback
               </p>
               <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
-                Instruct agents to modify dates, budget, or activities
+                Adjust dates, budget preferences, or activities
               </p>
             </div>
           </label>

@@ -5,7 +5,7 @@ import AgentTimeline from "./components/AgentTimeline";
 import HumanApprovalCard from "./components/HumanApprovalCard";
 import MessageItem from "./components/MessageItem";
 import { checkHealth, streamChat, resumeChat } from "./api";
-import { Send, Compass, Sparkles, Loader2, Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Send, Compass, Sparkles, Loader2, Menu, PanelLeftClose, PanelLeftOpen, ChevronDown } from "lucide-react";
 
 export default function App() {
   const [threads, setThreads] = useState(() => {
@@ -50,6 +50,21 @@ export default function App() {
   });
 
   const chatBottomRef = useRef(null);
+  const chatContainerRef = useRef(null);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
+
+  // Check whether user is scrolled up from bottom
+  const checkScrollPosition = () => {
+    const el = chatContainerRef.current;
+    if (!el) return;
+    const { scrollTop, scrollHeight, clientHeight } = el;
+    const notAtBottom = scrollHeight - scrollTop - clientHeight > 60;
+    setShowScrollBottom(notAtBottom);
+  };
+
+  const scrollToBottom = () => {
+    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
 
   // Save threads to localStorage
   useEffect(() => {
@@ -79,10 +94,30 @@ export default function App() {
   // Current active thread
   const currentThread = threads.find((t) => t.id === activeThreadId) || threads[0];
 
-  // Scroll to bottom on new messages
+  // Viewport scroll behavior: on new messages auto-scroll down, on new chat keep at top
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [currentThread?.messages, isStreaming, currentThread?.isInterrupted]);
+    if (currentThread?.messages?.length > 0 || isStreaming) {
+      chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    } else {
+      if (chatContainerRef.current) {
+        chatContainerRef.current.scrollTop = 0;
+      }
+    }
+    const timer = setTimeout(checkScrollPosition, 100);
+    return () => clearTimeout(timer);
+  }, [currentThread?.id, currentThread?.messages?.length, isStreaming, currentThread?.isInterrupted]);
+
+  // When switching thread, scroll to top if empty or bottom if has messages
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      if (currentThread?.messages?.length === 0) {
+        chatContainerRef.current.scrollTop = 0;
+      } else {
+        chatBottomRef.current?.scrollIntoView({ behavior: "instant" });
+      }
+      setTimeout(checkScrollPosition, 80);
+    }
+  }, [activeThreadId]);
 
   // Create New Trip
   const handleNewTrip = () => {
@@ -103,6 +138,14 @@ export default function App() {
       itinerary_agent: "pending",
       human_approval: "pending",
     });
+
+    // Ensure the top of the viewport appears when user starts a new chat
+    setTimeout(() => {
+      if (chatContainerRef.current) {
+        chatContainerRef.current.scrollTop = 0;
+      }
+      checkScrollPosition();
+    }, 50);
   };
 
   // Delete Thread
@@ -342,35 +385,49 @@ export default function App() {
               <Menu className="w-4 h-4 md:hidden" />
             </button>
 
-            <h2 className="font-bold text-xs sm:text-sm text-white truncate max-w-[180px] sm:max-w-md">
-              {currentThread?.title || "New Travel Plan"}
-            </h2>
+            {/* SagaTraveller Logo Format */}
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-400 flex items-center justify-center shadow-md shadow-blue-500/20 text-white flex-shrink-0">
+                <Compass className="w-4 h-4 text-white" />
+              </div>
+              <span className="font-extrabold text-sm sm:text-base tracking-tight text-white flex-shrink-0">
+                Saga<span className="text-blue-400">Traveller</span>
+              </span>
+              <span className="text-slate-600 hidden sm:inline flex-shrink-0">/</span>
+              <h2 className="font-medium text-xs text-slate-400 truncate max-w-[120px] sm:max-w-xs md:max-w-md hidden sm:block">
+                {currentThread?.title || "New Journey"}
+              </h2>
+            </div>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
             <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-slate-400 bg-[#131b2e] px-2.5 py-1 rounded-full border border-[#1e293b]">
               <span className={`w-2 h-2 rounded-full flex-shrink-0 ${healthStatus?.status === "healthy" ? "bg-emerald-400" : "bg-amber-400"}`} />
-              <span className="hidden sm:inline">{healthStatus?.status === "healthy" ? "API Online" : "Connecting..."}</span>
+              <span className="hidden sm:inline">{healthStatus?.status === "healthy" ? "Concierge Online" : "Connecting..."}</span>
               <span className="sm:hidden">{healthStatus?.status === "healthy" ? "Online" : "..."}</span>
             </div>
           </div>
         </header>
 
         {/* Scrollable Chat Area */}
-        <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 max-w-5xl mx-auto w-full">
+        <div
+          ref={chatContainerRef}
+          onScroll={checkScrollPosition}
+          className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 max-w-5xl mx-auto w-full relative scroll-smooth"
+        >
           {currentThread?.messages.length === 0 ? (
             <div className="py-4 sm:py-8">
               {/* Hero Banner */}
               <div className="text-center space-y-2 mb-6 sm:mb-8">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold">
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>Agentic Travel Assistant</span>
+                  <span>Intelligent Journey Companion</span>
                 </div>
-                <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                  Where would you like to travel?
+                <h1 className="text-2xl sm:text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+                  Where would you like to explore next?
                 </h1>
-                <p className="text-xs text-slate-400 max-w-lg mx-auto leading-relaxed px-2">
-                  Powered by LangGraph multi-agent orchestration, AviationStack MCP flights, Weather MCP forecasts, and Distributed LLMs.
+                <p className="text-xs sm:text-sm text-slate-400 max-w-lg mx-auto leading-relaxed px-2">
+                  Real-time flight options, hotel recommendations, local weather insights, and customized daily itineraries tailored to your style and budget.
                 </p>
               </div>
 
@@ -401,6 +458,19 @@ export default function App() {
 
           <div ref={chatBottomRef} className="h-4" />
         </div>
+
+        {/* Floating Scroll-to-Bottom Arrow Button */}
+        {showScrollBottom && (
+          <button
+            onClick={scrollToBottom}
+            className="fixed bottom-20 sm:bottom-24 right-5 sm:right-8 z-30 flex items-center gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2.5 bg-blue-600/95 hover:bg-blue-500 text-white rounded-full shadow-2xl shadow-blue-500/40 border border-blue-400/40 backdrop-blur-md transition-all duration-300 animate-bounce active:scale-90 group cursor-pointer"
+            title="Jump to latest"
+            aria-label="Scroll to bottom"
+          >
+            <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+            <span className="text-[11px] font-semibold hidden sm:inline">Latest</span>
+          </button>
+        )}
 
         {/* Fixed Bottom Input Bar with Mobile Safe Area */}
         <div className="p-2.5 sm:p-4 border-t border-[#1e293b] bg-[#0d1322]/95 backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom))] flex-shrink-0">
@@ -439,7 +509,7 @@ export default function App() {
             </form>
 
             <div className="text-center mt-1.5 sm:mt-2 text-[10px] text-slate-500 hidden sm:block">
-              Developed by <span className="text-slate-400 font-medium">Hamed Hasan</span> · Powered by LangGraph, Distributed LLMs &amp; MCP
+              <span className="font-semibold text-slate-300">Saga<span className="text-blue-400">Traveller</span></span> · Smart AI Travel Concierge · Crafted for seamless journeys
             </div>
           </div>
         </div>
