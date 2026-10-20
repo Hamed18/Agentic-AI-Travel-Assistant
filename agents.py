@@ -252,6 +252,7 @@ Use clean markdown with bullet points and bold headers. Do NOT generate flight o
             "You are SagaTraveller, the personal AI travel concierge. Answer directly with practical expertise.",
             direct_prompt,
         )
+        direct_response = sanitize_output(direct_response)
 
         return {
             "intent": intent,
@@ -862,16 +863,18 @@ CRITICAL: Output ONLY the complete travel plan itself with full daily schedule a
     print(result)
     print("======================================\n")
 
+    sanitized_result = sanitize_output(result)
+
     approval_request = f"""
 Please review this draft travel plan.
 
-{result}
+{sanitized_result}
 
 Reply with approval or feedback.
 """
 
     return {
-        "itinerary": result,
+        "itinerary": sanitized_result,
         "approval_request": approval_request,
         "messages": [AIMessage(content="Draft itinerary created for human review.")],
         "llm_calls": state.get("llm_calls", 0) + 1,
