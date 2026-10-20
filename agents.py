@@ -94,7 +94,7 @@ def _json_from_llm(text: str, default: dict = None) -> dict:
         return {}
 
 
-# ── Layer 1: Security & PII Scanning ──────────────────────────────────────────
+# ── Layer 1: Security & PII Scanning (Optimized Precompiled Regex & Luhn) ───
 JAILBREAK_PATTERNS = [
     r"ignore\s+(all\s+)?(previous|prior)\s+instructions?",
     r"disregard\s+(all\s+)?(previous|prior)",
@@ -109,26 +109,58 @@ JAILBREAK_PATTERNS = [
 ]
 
 PII_PATTERNS = {
-    "credit_card": r"\b(?:\d[ -]*?){13,16}\b",
+    "credit_card": r"\b(?:\d[ -]*?){13,19}\b",
     "passport": r"\b[A-PR-WY][1-9]\d\s?\d{4}[1-9]\b",
     "secret_token": r"(?:GROQ_API_KEY|NEON|DATABASE_URL|sk-lf-[a-zA-Z0-9_-]{15,}|lsv2_pt_[a-zA-Z0-9_-]{15,})",
 }
+
+# Precompile regexes once at module load for O(1) matching overhead
+COMPILED_JAILBREAK_PATTERNS = [re.compile(p, re.IGNORECASE) for p in JAILBREAK_PATTERNS]
+COMPILED_PII_PATTERNS = {k: re.compile(v, re.IGNORECASE) for k, v in PII_PATTERNS.items()}
+OUTPUT_REDACT_PATTERN = re.compile(r"(?:sk-lf-[a-zA-Z0-9_-]{15,}|lsv2_pt_[a-zA-Z0-9_-]{15,}|postgresql:\/\/[^\s@]+@[^\s\/]+)", re.IGNORECASE)
+
+
+def _is_luhn_valid(num_str: str) -> bool:
+    """Validate potential credit card number using standard Luhn algorithm (mod 10)."""
+    digits = [int(c) for c in num_str if c.isdigit()]
+    if len(digits) < 13 or len(digits) > 19:
+        return False
+    checksum = 0
+    reverse_digits = digits[::-1]
+    for i, d in enumerate(reverse_digits):
+        if i % 2 == 1:
+            d *= 2
+            if d > 9:
+                d -= 9
+        checksum += d
+    return checksum % 10 == 0
+
+
+def sanitize_output(text: str) -> str:
+    """Zero-leak output guardrail: redacts potential API keys, database connection strings, or system tokens."""
+    if not text or not isinstance(text, str):
+        return text
+    return OUTPUT_REDACT_PATTERN.sub("[REDACTED_SECRET]", text)
 
 
 def scan_security(text: str) -> tuple[bool, str]:
     """Zero-latency deterministic security scanner for jailbreaks, prompt injections, and PII."""
     clean = text.strip()
 
-    # Check jailbreaks & system prompt attacks
-    for pattern in JAILBREAK_PATTERNS:
-        if re.search(pattern, clean, re.IGNORECASE):
+    # Fast check jailbreaks & system prompt attacks
+    for regex in COMPILED_JAILBREAK_PATTERNS:
+        if regex.search(clean):
             return False, "Adversarial or system prompt injection attempt detected."
 
     # Check sensitive PII & credentials
-    for pii_type, pattern in PII_PATTERNS.items():
-        if re.search(pattern, clean, re.IGNORECASE):
+    for pii_type, regex in COMPILED_PII_PATTERNS.items():
+        match = regex.search(clean)
+        if match:
             if pii_type == "credit_card":
-                return False, "Credit card or financial payment numbers detected. For your safety, do not share private payment credentials."
+                matched_val = match.group(0)
+                # Verify genuine credit card via Luhn algorithm to prevent false positives on random digits
+                if _is_luhn_valid(matched_val):
+                    return False, "Credit card or financial payment numbers detected. For your safety, do not share private payment credentials."
             elif pii_type == "secret_token":
                 return False, "Probing for internal system secrets, credentials, or API keys detected."
             else:
@@ -302,9 +334,10 @@ User request:
 def direct_response_agent(state: TravelState):
     """Outputs the direct response for greetings, advisory, health, or security."""
     resp = state.get("direct_response") or state.get("final_response") or "How can I assist your travels today?"
+    sanitized = sanitize_output(resp)
     return {
-        "final_response": resp,
-        "messages": [AIMessage(content=resp)],
+        "final_response": sanitized,
+        "messages": [AIMessage(content=sanitized)],
     }
 
 
@@ -886,13 +919,14 @@ def final_response_agent(state: TravelState):
     # To guarantee zero loss of detail, tables, descriptions, or day-by-day schedules,
     # the approved itinerary is preserved 100% in full as the final publication plan.
     approved_itinerary = state.get("itinerary", "")
+    sanitized = sanitize_output(approved_itinerary)
 
     print("\n========== FINAL RESPONSE (FULL APPROVED ITINERARY) ==========")
-    print(approved_itinerary[:500] + ("..." if len(approved_itinerary) > 500 else ""))
+    print(sanitized[:500] + ("..." if len(sanitized) > 500 else ""))
     print("===============================================================\n")
 
     return {
-        "final_response": approved_itinerary,
-        "messages": [AIMessage(content=approved_itinerary)],
+        "final_response": sanitized,
+        "messages": [AIMessage(content=sanitized)],
         "llm_calls": state.get("llm_calls", 0),
     }
