@@ -234,7 +234,9 @@ async def stream_chat(req: ChatRequest):
 
             # Check if execution paused at human-in-the-loop interrupt
             snapshot = graph_app.get_state(config)
-            if snapshot.next:
+            intent = latest_state.get("intent", "trip_planning")
+
+            if snapshot.next and intent == "trip_planning":
                 logger.info(f"[SSE] Thread {thread_id} paused at interrupt: {snapshot.next}")
                 itinerary_draft = latest_state.get("itinerary") or snapshot.values.get("itinerary", "")
                 yield {
@@ -248,7 +250,6 @@ async def stream_chat(req: ChatRequest):
                 }
             else:
                 final = latest_state.get("final_response") or latest_state.get("direct_response") or latest_state.get("itinerary", "")
-                intent = latest_state.get("intent", "trip_planning")
                 resp_type = latest_state.get("response_type", "itinerary" if latest_state.get("itinerary") else "chat")
                 yield {
                     "event": "complete",
