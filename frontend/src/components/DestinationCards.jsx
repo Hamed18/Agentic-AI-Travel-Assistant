@@ -30,23 +30,23 @@ export default function DestinationCards({ onSelectPrompt }) {
   ];
 
   return (
-    <div className="my-6">
-      <div className="flex items-center justify-between mb-3">
+    <div className="my-4 sm:my-6">
+      <div className="flex flex-wrap items-center justify-between gap-1 mb-3">
         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
           Featured Destinations (Quick Start)
         </h3>
-        <span className="text-[11px] text-blue-400 font-medium">Click any card to launch</span>
+        <span className="text-[10px] sm:text-[11px] text-blue-400 font-medium">Tap any card to launch</span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-3.5">
         {destinations.map((d, i) => (
           <div
             key={i}
             onClick={() => onSelectPrompt(d.query)}
-            className="group relative bg-[#131b2e] border border-[#1e293b] hover:border-blue-500/50 rounded-2xl overflow-hidden cursor-pointer shadow-lg hover:shadow-blue-500/10 transition-all duration-300 hover:-translate-y-1"
+            className="group relative bg-[#131b2e] border border-[#1e293b] hover:border-blue-500/50 rounded-2xl overflow-hidden cursor-pointer shadow-lg hover:shadow-blue-500/10 transition-all duration-300 active:scale-[0.98]"
           >
             {/* Image Header with Gradient Overlay */}
-            <div className="h-32 w-full relative overflow-hidden">
+            <div className="h-28 sm:h-32 w-full relative overflow-hidden">
               <img
                 src={d.img}
                 alt={d.city}
@@ -60,8 +60,8 @@ export default function DestinationCards({ onSelectPrompt }) {
             </div>
 
             {/* Content Body */}
-            <div className="p-3.5">
-              <div className="flex items-center gap-1.5 text-white font-bold text-sm mb-1">
+            <div className="p-3 sm:p-3.5">
+              <div className="flex items-center gap-1.5 text-white font-bold text-xs sm:text-sm mb-1">
                 <MapPin className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
                 <span className="truncate">{d.city}</span>
               </div>
@@ -69,7 +69,7 @@ export default function DestinationCards({ onSelectPrompt }) {
                 {d.query}
               </p>
 
-              <div className="mt-3 pt-2.5 border-t border-[#1e293b] flex items-center justify-between text-[11px] font-semibold text-blue-400 group-hover:text-blue-300">
+              <div className="mt-2.5 pt-2 border-t border-[#1e293b] flex items-center justify-between text-[11px] font-semibold text-blue-400 group-hover:text-blue-300">
                 <span>Start Planning</span>
                 <ArrowRight className="w-3.5 h-3.5 transform group-hover:translate-x-1 transition-transform" />
               </div>

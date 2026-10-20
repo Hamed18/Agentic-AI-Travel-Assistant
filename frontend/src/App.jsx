@@ -5,7 +5,7 @@ import AgentTimeline from "./components/AgentTimeline";
 import HumanApprovalCard from "./components/HumanApprovalCard";
 import MessageItem from "./components/MessageItem";
 import { checkHealth, streamChat, resumeChat } from "./api";
-import { Send, Compass, Sparkles, Loader2, RefreshCw } from "lucide-react";
+import { Send, Compass, Sparkles, Loader2, Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 export default function App() {
   const [threads, setThreads] = useState(() => {
@@ -28,6 +28,13 @@ export default function App() {
   });
 
   const [activeThreadId, setActiveThreadId] = useState(() => threads[0]?.id || "default_trip");
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    if (typeof window !== "undefined") {
+      return window.innerWidth >= 768;
+    }
+    return true;
+  });
+
   const [inputQuery, setInputQuery] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
@@ -57,6 +64,17 @@ export default function App() {
     }, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  // Responsive resize handler for sidebar state
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768 && isSidebarOpen) {
+        setIsSidebarOpen(false);
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [isSidebarOpen]);
 
   // Current active thread
   const currentThread = threads.find((t) => t.id === activeThreadId) || threads[0];
@@ -292,8 +310,10 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-[#090d16] text-slate-100 overflow-hidden font-sans">
-      {/* Sidebar */}
+      {/* Sidebar Drawer */}
       <Sidebar
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
         threads={threads}
         activeThreadId={activeThreadId}
         onSelectThread={setActiveThreadId}
@@ -303,37 +323,53 @@ export default function App() {
       />
 
       {/* Main Conversation Canvas */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden relative">
+      <main className="flex-1 flex flex-col h-full overflow-hidden relative min-w-0">
         {/* Top Navbar */}
-        <header className="h-14 border-b border-[#1e293b] bg-[#0d1322]/80 backdrop-blur-md flex items-center justify-between px-6 z-10">
-          <div className="flex items-center gap-2">
-            <h2 className="font-bold text-sm text-white truncate max-w-md">
+        <header className="h-14 border-b border-[#1e293b] bg-[#0d1322]/90 backdrop-blur-md flex items-center justify-between px-3 sm:px-6 z-10 flex-shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            {/* Sidebar Toggle Button */}
+            <button
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="p-2 rounded-xl bg-[#131b2e] border border-[#1e293b] hover:bg-[#1a2540] text-slate-300 hover:text-white transition-colors flex-shrink-0"
+              title={isSidebarOpen ? "Collapse sidebar" : "Open sidebar"}
+              aria-label="Toggle sidebar"
+            >
+              {isSidebarOpen ? (
+                <PanelLeftClose className="w-4 h-4 hidden md:block" />
+              ) : (
+                <PanelLeftOpen className="w-4 h-4 hidden md:block" />
+              )}
+              <Menu className="w-4 h-4 md:hidden" />
+            </button>
+
+            <h2 className="font-bold text-xs sm:text-sm text-white truncate max-w-[180px] sm:max-w-md">
               {currentThread?.title || "New Travel Plan"}
             </h2>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 bg-[#131b2e] px-2.5 py-1 rounded-full border border-[#1e293b]">
-              <span className={`w-2 h-2 rounded-full ${healthStatus?.status === "healthy" ? "bg-emerald-400" : "bg-amber-400"}`} />
-              <span>{healthStatus?.status === "healthy" ? "API Online" : "Connecting..."}</span>
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-slate-400 bg-[#131b2e] px-2.5 py-1 rounded-full border border-[#1e293b]">
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${healthStatus?.status === "healthy" ? "bg-emerald-400" : "bg-amber-400"}`} />
+              <span className="hidden sm:inline">{healthStatus?.status === "healthy" ? "API Online" : "Connecting..."}</span>
+              <span className="sm:hidden">{healthStatus?.status === "healthy" ? "Online" : "..."}</span>
             </div>
           </div>
         </header>
 
         {/* Scrollable Chat Area */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 max-w-5xl mx-auto w-full">
+        <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 max-w-5xl mx-auto w-full">
           {currentThread?.messages.length === 0 ? (
-            <div className="py-8">
+            <div className="py-4 sm:py-8">
               {/* Hero Banner */}
-              <div className="text-center space-y-2 mb-8">
+              <div className="text-center space-y-2 mb-6 sm:mb-8">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold">
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>Agentic Travel Assistant</span>
                 </div>
-                <h1 className="text-3xl font-extrabold text-white tracking-tight">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
                   Where would you like to travel?
                 </h1>
-                <p className="text-xs text-slate-400 max-w-lg mx-auto leading-relaxed">
+                <p className="text-xs text-slate-400 max-w-lg mx-auto leading-relaxed px-2">
                   Powered by LangGraph multi-agent orchestration, AviationStack MCP flights, Weather MCP forecasts, and Distributed LLMs.
                 </p>
               </div>
@@ -342,7 +378,7 @@ export default function App() {
               <DestinationCards onSelectPrompt={(p) => handleSend(p)} />
             </div>
           ) : (
-            <div>
+            <div className="space-y-1">
               {currentThread?.messages.map((msg, i) => (
                 <MessageItem key={i} message={msg} />
               ))}
@@ -366,8 +402,8 @@ export default function App() {
           <div ref={chatBottomRef} className="h-4" />
         </div>
 
-        {/* Fixed Bottom Input Bar */}
-        <div className="p-4 border-t border-[#1e293b] bg-[#0d1322]/95 backdrop-blur-md">
+        {/* Fixed Bottom Input Bar with Mobile Safe Area */}
+        <div className="p-2.5 sm:p-4 border-t border-[#1e293b] bg-[#0d1322]/95 backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom))] flex-shrink-0">
           <div className="max-w-4xl mx-auto">
             <form
               onSubmit={(e) => {
@@ -384,15 +420,15 @@ export default function App() {
                 placeholder={
                   currentThread?.isInterrupted
                     ? "Review the draft plan above to approve or request revisions..."
-                    : "Plan a 7-day trip, luxury weekend, or describe your vacation..."
+                    : "Plan a trip, luxury weekend, or vacation..."
                 }
-                className="w-full bg-transparent py-3.5 pl-4 pr-14 text-xs text-white placeholder-slate-500 focus:outline-none disabled:opacity-50"
+                className="w-full bg-transparent py-3 sm:py-3.5 pl-3.5 sm:pl-4 pr-12 sm:pr-14 text-base sm:text-xs text-white placeholder-slate-500 focus:outline-none disabled:opacity-50"
               />
 
               <button
                 type="submit"
                 disabled={!inputQuery.trim() || isStreaming || currentThread?.isInterrupted}
-                className="absolute right-2.5 p-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-30 disabled:hover:bg-blue-600 text-white rounded-xl transition-all shadow-md active:scale-95"
+                className="absolute right-2 p-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-30 disabled:hover:bg-blue-600 text-white rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center min-w-[36px] min-h-[36px]"
               >
                 {isStreaming ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -402,7 +438,7 @@ export default function App() {
               </button>
             </form>
 
-            <div className="text-center mt-2 text-[10px] text-slate-500">
+            <div className="text-center mt-1.5 sm:mt-2 text-[10px] text-slate-500 hidden sm:block">
               Developed by <span className="text-slate-400 font-medium">Hamed Hasan</span> · Powered by LangGraph, Distributed LLMs &amp; MCP
             </div>
           </div>
