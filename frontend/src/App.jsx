@@ -30,13 +30,8 @@ export default function App() {
 
   const [activeThreadId, setActiveThreadId] = useState(() => threads[0]?.id || "default_trip");
   
-  // Mobile-first default: Closed on mobile (<1024px), open on desktop (>=1024px)
-  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
-    if (typeof window !== "undefined") {
-      return window.innerWidth >= 1024;
-    }
-    return false;
-  });
+  // Always closed by default on initial landing across all devices (mobile, tablet, desktop)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [inputQuery, setInputQuery] = useState("");

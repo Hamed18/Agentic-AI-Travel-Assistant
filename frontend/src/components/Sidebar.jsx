@@ -35,8 +35,8 @@ export default function Sidebar({
 
       {/* Sidebar Drawer */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0d1322] border-r border-[#1e293b] flex flex-col h-full select-none transition-transform duration-300 ease-in-out lg:static ${
-          isOpen ? "translate-x-0" : "-translate-x-full lg:-ml-72"
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0d1322] border-r border-[#1e293b] flex flex-col h-full select-none transition-all duration-300 ease-in-out lg:static ${
+          isOpen ? "translate-x-0 lg:ml-0" : "-translate-x-full lg:-ml-72 lg:pointer-events-none"
         }`}
       >
         {/* Brand Header with SagaTraveller Logo */}
