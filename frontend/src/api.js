@@ -3,7 +3,8 @@
  * Handles Server-Sent Events (SSE) streaming, thread management, and PDF generation.
  */
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const rawBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
+export const API_BASE_URL = rawBaseUrl.replace(/\/+$/, "");
 
 /**
  * Checks backend health and database connectivity

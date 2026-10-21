@@ -16,6 +16,7 @@ import json
 import uuid
 import logging
 import asyncio
+import re
 from typing import Optional, AsyncGenerator
 
 from dotenv import load_dotenv
@@ -67,6 +68,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def normalize_slashes_middleware(request: Request, call_next):
+    """Normalize any repeated slashes in the path (e.g. //api/health -> /api/health)"""
+    path = request.scope.get("path", "")
+    if "//" in path:
+        request.scope["path"] = re.sub(r"/+", "/", path)
+    return await call_next(request)
 
 # Reusable LangGraph runtime instance
 graph_app = build_graph()
