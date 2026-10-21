@@ -6,7 +6,7 @@ import HumanApprovalCard from "./components/HumanApprovalCard";
 import MessageItem from "./components/MessageItem";
 import AboutModal from "./components/AboutModal";
 import { checkHealth, streamChat, resumeChat } from "./api";
-import { Send, Compass, Sparkles, Loader2, Menu, PanelLeftClose, PanelLeftOpen, ChevronDown } from "lucide-react";
+import { Send, Compass, Sparkles, Loader2, Menu, PanelLeftClose, PanelLeftOpen, ChevronDown, BookOpen } from "lucide-react";
 
 export default function App() {
   const [threads, setThreads] = useState(() => {
@@ -423,11 +423,17 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-            <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-slate-400 bg-[#131b2e] px-2.5 py-1 rounded-full border border-[#1e293b]">
+            {/* User Guide Interactive Button */}
+            <button
+              onClick={() => setIsAboutOpen(true)}
+              className="flex items-center gap-1.5 text-[11px] sm:text-xs text-blue-300 hover:text-white bg-[#131b2e] hover:bg-[#1a2540] px-2.5 sm:px-3 py-1.5 rounded-full border border-blue-500/30 hover:border-blue-500/60 transition-all shadow-sm active:scale-95 cursor-pointer"
+              title="Open User Guide & About SagaTraveller"
+              aria-label="User Guide"
+            >
               <span className={`w-2 h-2 rounded-full flex-shrink-0 ${healthStatus?.status === "healthy" ? "bg-emerald-400" : "bg-amber-400"}`} />
-              <span className="hidden sm:inline">{healthStatus?.status === "healthy" ? "Concierge Online" : "Connecting..."}</span>
-              <span className="sm:hidden">{healthStatus?.status === "healthy" ? "Online" : "..."}</span>
-            </div>
+              <BookOpen className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+              <span className="font-semibold">User Guide</span>
+            </button>
           </div>
         </header>
 
