@@ -4,7 +4,7 @@
 
 **SagaTraveller** is an enterprise-grade, agentic AI travel concierge system. It transitions beyond traditional single-track LLM prompt wrappers by employing a **4-Layer Intent-Aware, Multi-Agent Architecture** built on **LangGraph**, **FastAPI**, **Server-Sent Events (SSE)**, and **React 19**.
 
-### Core Philosophy
+### Core Components
 * **Safety First**: Deterministic security and PII screening precede any LLM invocation.
 * **Intent-Driven Routing**: Agents are triggered strictly on demand. Chit-chat and advisory questions never execute expensive flight or hotel search pipelines.
 * **Zero Hallucination**: Queries without a destination (e.g., travel document inquiries or winter emergencies) are directly answered with practical facts rather than fabricated itineraries.
