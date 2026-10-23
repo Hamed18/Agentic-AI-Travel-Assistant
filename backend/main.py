@@ -1,7 +1,8 @@
 """
 main.py - Production FastAPI Backend for Agentic AI Travel Assistant
 Decoupled API layer serving Server-Sent Events (SSE), Human-in-the-Loop workflows,
-and PDF generation for the modern React frontend (Vercel) & Render container deployment.
+PDF generation, JWT Authentication (P1), Multi-Tenant Isolation (P2),
+Episodic Memory (P3), and Admin Document Ingestion (P4).
 """
 
 import os
@@ -17,12 +18,12 @@ import uuid
 import logging
 import asyncio
 import re
-from typing import Optional, AsyncGenerator
+from typing import Optional, List, Dict, Any, AsyncGenerator
 
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response, Depends, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
@@ -35,6 +36,38 @@ from langgraph.types import Command
 from pdf_generator import create_pdf
 from observability import get_callbacks, flush_observability
 
+# Auth (P1)
+from auth import (
+    SecurityContext,
+    get_security_context,
+    require_admin,
+    register_user,
+    authenticate_user,
+    create_access_token,
+    create_guest_session,
+    UserRegisterRequest,
+    UserLoginRequest,
+    TokenResponse,
+)
+
+# Multi-Tenant Isolation & Document Storage (P2)
+from tenant_service import (
+    save_tenant_file,
+    list_tenant_files,
+    delete_tenant_file,
+    ingest_document_for_tenant,
+    search_tenant_documents,
+    list_tenant_documents,
+    delete_tenant_document_by_name,
+)
+
+# Episodic Memory (P3)
+from memory_service import (
+    save_interaction,
+    get_recent_interactions,
+    format_memory_context_for_llm,
+)
+
 # Configure root logger
 logging.basicConfig(
     level=logging.INFO,
@@ -44,12 +77,11 @@ logger = logging.getLogger("travel_api")
 
 app = FastAPI(
     title="Agentic AI Travel Assistant API",
-    description="Multi-Agent Travel Planning System powered by LangGraph, MCP, and Distributed LLMs",
-    version="1.0.0",
+    description="Multi-Agent Travel Planning System powered by LangGraph, MCP, Distributed LLMs, and Multi-Tenant Auth",
+    version="2.0.0",
 )
 
 # ── CORS Middleware ───────────────────────────────────────────────────────────
-# Allow React local dev (Vite: 5173, Next.js: 3000) and deployed Vercel domains
 raw_origins = os.getenv("ALLOWED_ORIGINS", "")
 allowed_origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
 default_origins = [
@@ -59,7 +91,6 @@ default_origins = [
     "http://127.0.0.1:3000",
 ]
 
-# Allow any Vercel preview/production URL via regex pattern
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins if allowed_origins else ["*"],
@@ -99,6 +130,12 @@ class PDFRequest(BaseModel):
     filename: Optional[str] = Field(default="Travel_Plan.pdf")
 
 
+class TextIngestRequest(BaseModel):
+    title: str = Field(..., description="Document or Guide Title")
+    content: str = Field(..., description="Text content to chunk, embed, and isolate for tenant")
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+
 # ── Health & Info Endpoints ───────────────────────────────────────────────────
 @app.get("/")
 async def root():
@@ -106,7 +143,13 @@ async def root():
         "service": "Agentic AI Travel Assistant API",
         "status": "running",
         "docs": "/docs",
-        "version": "1.0.0",
+        "version": "2.0.0",
+        "features": [
+            "P1: JWT Authentication & Bcrypt Hashing",
+            "P2: Multi-Tenant Vector & File Isolation",
+            "P3: Episodic Memory in Neon PostgreSQL",
+            "P4: Admin Ingestion Interface",
+        ],
         "tier": "Distributed (Groq LPU + Google Gemini Fallback)",
     }
 
@@ -130,6 +173,197 @@ async def health_check():
         "database": db_status,
         "runtime": "FastAPI + LangGraph",
         "observability": "LangSmith + Langfuse v5 active",
+        "auth": "JWT + Bcrypt enabled",
+    }
+
+
+# ── Authentication Endpoints (Phase 1) ─────────────────────────────────────────
+@app.post("/api/auth/register", response_model=TokenResponse)
+async def api_register(req: UserRegisterRequest):
+    """Register new user with bcrypt password hashing in Neon DB and return JWT."""
+    user = register_user(req)
+    token = create_access_token({
+        "sub": user["id"],
+        "email": user["email"],
+        "name": user["name"],
+        "role": user["role"],
+        "tenant_id": user["tenant_id"],
+        "is_guest": False,
+    })
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "expires_in_hours": 24,
+        "user": user,
+    }
+
+
+@app.post("/api/auth/login", response_model=TokenResponse)
+async def api_login(req: UserLoginRequest):
+    """Authenticate existing user against bcrypt hash and return signed JWT."""
+    user = authenticate_user(req)
+    token = create_access_token({
+        "sub": user["id"],
+        "email": user["email"],
+        "name": user["name"],
+        "role": user["role"],
+        "tenant_id": user["tenant_id"],
+        "is_guest": False,
+    })
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "expires_in_hours": 24,
+        "user": user,
+    }
+
+
+@app.post("/api/auth/guest", response_model=TokenResponse)
+async def api_guest_session():
+    """Create an ephemeral guest session with 2-hour TTL."""
+    guest_user = create_guest_session()
+    from datetime import timedelta
+    token = create_access_token(
+        {
+            "sub": guest_user["id"],
+            "email": None,
+            "name": guest_user["name"],
+            "role": "guest",
+            "tenant_id": guest_user["tenant_id"],
+            "is_guest": True,
+        },
+        expires_delta=timedelta(hours=2)
+    )
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "expires_in_hours": 2,
+        "user": guest_user,
+    }
+
+
+@app.get("/api/auth/me")
+async def api_get_me(context: SecurityContext = Depends(get_security_context)):
+    """Return security context and privileges of current caller."""
+    return {
+        "user_id": context.user_id,
+        "email": context.email,
+        "name": context.name,
+        "role": context.role,
+        "tenant_id": context.tenant_id,
+        "is_guest": context.is_guest,
+        "is_admin": context.is_admin,
+    }
+
+
+# ── Multi-Tenant Ingestion & Document Endpoints (Phase 2 & Phase 4) ────────────
+@app.post("/api/documents/upload")
+async def upload_document_endpoint(
+    file: UploadFile = File(...),
+    context: SecurityContext = Depends(require_admin)
+):
+    """
+    Admin-only endpoint to upload documents into namespaced tenant storage
+    and index vector embeddings into tenant_documents table with owner_id = tenant_id.
+    """
+    content_bytes = await file.read()
+    filename = file.filename or "uploaded_doc.txt"
+
+    # Save to namespaced tenant directory
+    saved_info = save_tenant_file(context.tenant_id, filename, content_bytes)
+
+    # Decode text content for vector indexing
+    try:
+        text_content = content_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        try:
+            text_content = content_bytes.decode("latin-1")
+        except Exception:
+            text_content = f"Binary file: {filename} ({len(content_bytes)} bytes)"
+
+    # Chunk and embed into tenant_documents table with strict owner_id isolation
+    doc_ids = ingest_document_for_tenant(
+        tenant_id=context.tenant_id,
+        filename=filename,
+        content=text_content,
+        metadata={"uploader": context.email or context.user_id, "role": context.role},
+        file_path=saved_info["path"],
+        file_size=saved_info["size_bytes"],
+    )
+
+    return {
+        "status": "success",
+        "filename": filename,
+        "size_bytes": saved_info["size_bytes"],
+        "chunks_indexed": len(doc_ids),
+        "owner_id": context.tenant_id,
+    }
+
+
+@app.post("/api/documents/ingest-text")
+async def ingest_text_endpoint(
+    req: TextIngestRequest,
+    context: SecurityContext = Depends(require_admin)
+):
+    """Admin-only endpoint to ingest raw guidebooks, policy rules, or custom text."""
+    filename = f"{re.sub(r'[^a-zA-Z0-9_-]', '_', req.title)}.txt"
+    data = req.content.encode("utf-8")
+    saved_info = save_tenant_file(context.tenant_id, filename, data)
+
+    doc_ids = ingest_document_for_tenant(
+        tenant_id=context.tenant_id,
+        filename=filename,
+        content=req.content,
+        metadata=req.metadata,
+        file_path=saved_info["path"],
+        file_size=len(data),
+    )
+
+    return {
+        "status": "success",
+        "title": req.title,
+        "filename": filename,
+        "chunks_indexed": len(doc_ids),
+        "owner_id": context.tenant_id,
+    }
+
+
+@app.get("/api/documents")
+async def list_documents_endpoint(context: SecurityContext = Depends(get_security_context)):
+    """List documents isolated strictly to caller's tenant_id."""
+    return {
+        "tenant_id": context.tenant_id,
+        "documents": list_tenant_documents(context.tenant_id),
+    }
+
+
+@app.delete("/api/documents/{filename}")
+async def delete_document_endpoint(
+    filename: str,
+    context: SecurityContext = Depends(require_admin)
+):
+    """Admin-only deletion of a document for caller's tenant."""
+    deleted_chunks = delete_tenant_document_by_name(context.tenant_id, filename)
+    return {
+        "status": "deleted",
+        "filename": filename,
+        "deleted_chunks": deleted_chunks,
+        "tenant_id": context.tenant_id,
+    }
+
+
+# ── Episodic Memory Endpoints (Phase 3) ─────────────────────────────────────────
+@app.get("/api/memory/history")
+async def get_memory_history_endpoint(
+    limit: int = 10,
+    context: SecurityContext = Depends(get_security_context)
+):
+    """Retrieve recent episodic Q&A history isolated strictly to caller's tenant_id."""
+    history = get_recent_interactions(context.tenant_id, limit=limit)
+    return {
+        "owner_id": context.tenant_id,
+        "count": len(history),
+        "history": history,
     }
 
 
@@ -145,7 +379,7 @@ async def get_thread_state(thread_id: str):
             "next": list(snapshot.next) if snapshot.next else [],
             "values": {
                 k: v for k, v in snapshot.values.items()
-                if k not in ["messages"]  # Exclude raw LangChain objects for clean JSON
+                if k not in ["messages"]
             },
             "is_interrupted": bool(snapshot.next),
         }
@@ -155,14 +389,18 @@ async def get_thread_state(thread_id: str):
 
 # ── Real-Time Streaming Chat Endpoint (SSE) ───────────────────────────────────
 @app.post("/api/chat/stream")
-async def stream_chat(req: ChatRequest):
+async def stream_chat(
+    req: ChatRequest,
+    context: SecurityContext = Depends(get_security_context)
+):
     """
     Initiates a trip planning request and streams real-time stage updates via Server-Sent Events (SSE).
-    Streams agent completions (supervisor, parallel_specialists, budget, itinerary) and interrupts.
+    Injects episodic memory (P3) and tenant vector document context (P2).
     """
     thread_id = req.thread_id
-    user_id = req.user_id
     query = req.query.strip()
+    owner_id = context.tenant_id
+    user_id = context.user_id
 
     if not query:
         raise HTTPException(status_code=400, detail="Query cannot be empty.")
@@ -172,9 +410,24 @@ async def stream_chat(req: ChatRequest):
         "callbacks": get_callbacks(session_id=thread_id, user_id=user_id, tags=["chat-stream"])
     }
 
+    # P3: Retrieve episodic memory history context
+    episodic_context = format_memory_context_for_llm(owner_id, limit=4)
+
+    # P2: Multi-tenant vector search for relevant uploaded tenant documents
+    matched_docs = search_tenant_documents(owner_id, query, top_k=3, min_score=0.10)
+    tenant_docs_str = ""
+    if matched_docs:
+        doc_lines = []
+        for d in matched_docs:
+            doc_lines.append(f"- [{d['filename']}] (relevance: {d['score']}): {d['content']}")
+        tenant_docs_str = "\n".join(doc_lines)
+
     initial_state = {
         "user_query": query,
         "user_id": user_id,
+        "owner_id": owner_id,
+        "episodic_context": episodic_context,
+        "tenant_docs_context": tenant_docs_str,
         "messages": [],
         "flight_results": "",
         "hotel_results": "",
@@ -188,32 +441,24 @@ async def stream_chat(req: ChatRequest):
     }
 
     async def event_generator() -> AsyncGenerator[dict, None]:
-        # 1. Emit start event
         yield {
             "event": "start",
-            "data": json.dumps({"thread_id": thread_id, "query": query})
+            "data": json.dumps({
+                "thread_id": thread_id, 
+                "query": query,
+                "user_id": user_id,
+                "is_guest": context.is_guest,
+            })
         }
 
         latest_state = {}
 
         try:
-            # Run graph stream in a thread pool executor to maintain non-blocking async SSE
-            loop = asyncio.get_event_loop()
-
-            def _run_stream():
-                chunks = []
-                for chunk in graph_app.stream(initial_state, config=config, stream_mode="updates"):
-                    chunks.append(chunk)
-                return chunks
-
-            # Stream graph updates
-            # Note: We stream node-by-node updates to notify the frontend as each specialist completes
             for chunk in graph_app.stream(initial_state, config=config, stream_mode="updates"):
                 for node_name, node_update in chunk.items():
                     if isinstance(node_update, dict):
                         latest_state.update(node_update)
 
-                        # Emit stage-specific payloads
                         stage_payload = {
                             "node": node_name,
                             "thread_id": thread_id,
@@ -247,7 +492,7 @@ async def stream_chat(req: ChatRequest):
                             "data": json.dumps(stage_payload)
                         }
 
-            # Check if execution paused at human-in-the-loop interrupt
+            # Check if paused at human-in-the-loop interrupt
             snapshot = graph_app.get_state(config)
             intent = latest_state.get("intent", "trip_planning")
 
@@ -266,6 +511,24 @@ async def stream_chat(req: ChatRequest):
             else:
                 final = latest_state.get("final_response") or latest_state.get("direct_response") or latest_state.get("itinerary", "")
                 resp_type = latest_state.get("response_type", "itinerary" if latest_state.get("itinerary") else "chat")
+                
+                # P3: Save completed interaction into Neon episodic memory
+                try:
+                    save_interaction(
+                        owner_id=owner_id,
+                        thread_id=thread_id,
+                        user_query=query,
+                        assistant_response=final,
+                        intent=intent,
+                        metadata={
+                            "response_type": resp_type,
+                            "is_guest": context.is_guest,
+                            "constraints": latest_state.get("trip_constraints", {})
+                        }
+                    )
+                except Exception as save_err:
+                    logger.warning(f"Episodic memory save failed: {save_err}")
+
                 yield {
                     "event": "complete",
                     "data": json.dumps({
@@ -292,14 +555,18 @@ async def stream_chat(req: ChatRequest):
 
 # ── Human-in-the-Loop Resume Endpoint (SSE) ───────────────────────────────────
 @app.post("/api/chat/resume")
-async def resume_chat(req: ResumeRequest):
+async def resume_chat(
+    req: ResumeRequest,
+    context: SecurityContext = Depends(get_security_context)
+):
     """
-    Resumes a paused conversation after the user approves or requests revisions.
+    Resumes a paused conversation after user approves or requests revisions.
     Streams final polishing or newly generated revision itinerary via SSE.
     """
     thread_id = req.thread_id
     is_approved = req.approved
     feedback = req.feedback.strip() if req.feedback else ""
+    owner_id = context.tenant_id
 
     config = {
         "configurable": {"thread_id": thread_id},
@@ -338,7 +605,6 @@ async def resume_chat(req: ResumeRequest):
                             })
                         }
 
-            # Inspect if another interrupt occurred (e.g. user requested revision and new draft is ready)
             snapshot = graph_app.get_state(config)
             if snapshot.next:
                 itinerary_draft = latest_state.get("itinerary") or snapshot.values.get("itinerary", "")
@@ -354,6 +620,20 @@ async def resume_chat(req: ResumeRequest):
                 }
             else:
                 final = latest_state.get("final_response") or latest_state.get("itinerary", "")
+
+                # P3: Record revision in episodic memory
+                try:
+                    save_interaction(
+                        owner_id=owner_id,
+                        thread_id=thread_id,
+                        user_query=f"Revision request: {feedback}" if feedback else "Itinerary Approved",
+                        assistant_response=final,
+                        intent="trip_planning_revision",
+                        metadata={"approved": is_approved, "is_guest": context.is_guest}
+                    )
+                except Exception as save_err:
+                    logger.warning(f"Episodic memory save on resume failed: {save_err}")
+
                 yield {
                     "event": "complete",
                     "data": json.dumps({
@@ -381,7 +661,6 @@ async def resume_chat(req: ResumeRequest):
 async def generate_pdf_endpoint(req: PDFRequest):
     """
     Renders publication-grade PDF from approved itinerary markdown with anti-aliased donut chart.
-    Returns binary PDF stream with attachment header for instant browser download.
     """
     if not req.itinerary_markdown or not req.itinerary_markdown.strip():
         raise HTTPException(status_code=400, detail="itinerary_markdown cannot be empty.")

@@ -5,29 +5,73 @@ import AgentTimeline from "./components/AgentTimeline";
 import HumanApprovalCard from "./components/HumanApprovalCard";
 import MessageItem from "./components/MessageItem";
 import AboutModal from "./components/AboutModal";
-import { checkHealth, streamChat, resumeChat } from "./api";
-import { Send, Compass, Sparkles, Loader2, Menu, PanelLeftClose, PanelLeftOpen, ChevronDown, BookOpen } from "lucide-react";
+import AuthModal from "./components/AuthModal";
+import GuestBanner from "./components/GuestBanner";
+import AdminIngestionModal from "./components/AdminIngestionModal";
+import { checkHealth, streamChat, resumeChat, getMe, createGuestSession, clearStoredAuth, getStoredUser } from "./api";
+import {
+  Send,
+  Compass,
+  Sparkles,
+  Loader2,
+  Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
+  ChevronDown,
+  BookOpen,
+  Shield,
+  User,
+  LogIn,
+  LogOut,
+  Database,
+} from "lucide-react";
+
+// Remove legacy shared storage key to prevent data leakage across users & sessions
+try {
+  localStorage.removeItem("travel_assistant_threads");
+} catch (e) {}
+
+function getStorageKey(u) {
+  if (!u) return null;
+  const id = u.id || u.user_id || u.tenant_id;
+  if (!id) return null;
+  return u.is_guest
+    ? `travel_assistant_threads_guest_${id}`
+    : `travel_assistant_threads_user_${id}`;
+}
+
+function createFreshThread() {
+  const initialId = "trip_" + Math.random().toString(36).substring(2, 9);
+  return [
+    {
+      id: initialId,
+      title: "New Trip",
+      messages: [],
+      isInterrupted: false,
+      isRevision: false,
+    },
+  ];
+}
+
+function loadUserThreads(u) {
+  const key = getStorageKey(u);
+  if (key) {
+    try {
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+  }
+  return createFreshThread();
+}
 
 export default function App() {
-  const [threads, setThreads] = useState(() => {
-    const saved = localStorage.getItem("travel_assistant_threads");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    const initialId = "trip_" + Math.random().toString(36).substring(2, 9);
-    return [
-      {
-        id: initialId,
-        title: "New Trip",
-        messages: [],
-        isInterrupted: false,
-        isRevision: false,
-      },
-    ];
-  });
-
+  const [user, setUser] = useState(() => getStoredUser());
+  const [threads, setThreads] = useState(() => loadUserThreads(getStoredUser()));
   const [activeThreadId, setActiveThreadId] = useState(() => threads[0]?.id || "default_trip");
   
   // Always closed by default on initial landing across all devices (mobile, tablet, desktop)
@@ -39,6 +83,80 @@ export default function App() {
   const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
   const [healthStatus, setHealthStatus] = useState(null);
   const [currentIntent, setCurrentIntent] = useState("trip_planning");
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
+
+  // Initialize and verify user auth / guest session
+  useEffect(() => {
+    getMe().then((me) => {
+      if (me) {
+        setUser(me);
+        const loaded = loadUserThreads(me);
+        setThreads(loaded);
+        setActiveThreadId(loaded[0]?.id || "default_trip");
+      } else {
+        createGuestSession()
+          .then((res) => {
+            setUser(res.user);
+            const loaded = loadUserThreads(res.user);
+            setThreads(loaded);
+            setActiveThreadId(loaded[0]?.id || "default_trip");
+          })
+          .catch((e) => console.warn("Guest session init error:", e));
+      }
+    });
+  }, []);
+
+  const handleLogout = async () => {
+    // 1. Purge guest data if active session was a guest
+    if (user?.is_guest) {
+      const guestKey = getStorageKey(user);
+      if (guestKey) {
+        try {
+          localStorage.removeItem(guestKey);
+        } catch (e) {}
+      }
+    }
+
+    // 2. Clear stored auth credentials
+    clearStoredAuth();
+
+    // 3. Reset in-memory threads data state immediately
+    const fresh = createFreshThread();
+    setThreads(fresh);
+    setActiveThreadId(fresh[0].id);
+
+    // 4. Initialize clean isolated guest session
+    try {
+      const guest = await createGuestSession();
+      setUser(guest.user);
+      const guestFresh = createFreshThread();
+      setThreads(guestFresh);
+      setActiveThreadId(guestFresh[0].id);
+    } catch (e) {
+      setUser(null);
+    }
+  };
+
+  const handleAuthSuccess = (authenticatedUser) => {
+    // 1. Clear previous temporary guest data when transitioning to authenticated session
+    if (user?.is_guest) {
+      const guestKey = getStorageKey(user);
+      if (guestKey) {
+        try {
+          localStorage.removeItem(guestKey);
+        } catch (e) {}
+      }
+    }
+
+    // 2. Set authenticated user
+    setUser(authenticatedUser);
+
+    // 3. Load isolated threads belonging strictly to this user
+    const loaded = loadUserThreads(authenticatedUser);
+    setThreads(loaded);
+    setActiveThreadId(loaded[0]?.id || "default_trip");
+  };
 
   // Active stage states for timeline
   const [activeStages, setActiveStages] = useState({
@@ -72,10 +190,15 @@ export default function App() {
     }
   };
 
-  // Save threads to localStorage
+  // Save threads to isolated user-specific / session-specific storage key
   useEffect(() => {
-    localStorage.setItem("travel_assistant_threads", JSON.stringify(threads));
-  }, [threads]);
+    const key = getStorageKey(user);
+    if (key && threads) {
+      try {
+        localStorage.setItem(key, JSON.stringify(threads));
+      } catch (e) {}
+    }
+  }, [threads, user]);
 
   // Check backend health periodically
   useEffect(() => {
@@ -385,6 +508,10 @@ export default function App() {
         onDeleteThread={handleDeleteThread}
         healthStatus={healthStatus}
         onOpenAbout={() => setIsAboutOpen(true)}
+        user={user}
+        onOpenAuth={() => setIsAuthOpen(true)}
+        onOpenAdmin={() => setIsAdminOpen(true)}
+        onLogout={handleLogout}
       />
 
       {/* Main Conversation Canvas */}
@@ -423,6 +550,53 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            {/* Admin Knowledge Ingestion Button */}
+            {user?.role === "admin" && (
+              <button
+                onClick={() => setIsAdminOpen(true)}
+                className="flex items-center gap-1.5 text-[11px] sm:text-xs text-purple-300 hover:text-white bg-purple-950/40 hover:bg-purple-900/40 px-2.5 sm:px-3 py-1.5 rounded-full border border-purple-500/30 hover:border-purple-500/60 transition-all shadow-sm active:scale-95 cursor-pointer font-semibold"
+                title="Open Admin Knowledge & Ingestion Hub"
+              >
+                <Database className="w-3.5 h-3.5 text-purple-400" />
+                <span className="hidden sm:inline">Ingestion Hub</span>
+              </button>
+            )}
+
+            {/* Auth Profile / Login Button */}
+            {user?.is_guest ? (
+              <button
+                onClick={() => setIsAuthOpen(true)}
+                className="flex items-center gap-1.5 text-[11px] sm:text-xs text-blue-300 hover:text-white bg-blue-600/20 hover:bg-blue-600/30 px-3 py-1.5 rounded-full border border-blue-500/40 transition-all shadow-sm active:scale-95 cursor-pointer font-semibold"
+              >
+                <LogIn className="w-3.5 h-3.5 text-blue-400" />
+                <span>Sign In</span>
+              </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsAuthOpen(true)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#131b2e] border border-slate-700/80 text-xs text-slate-200 hover:border-blue-500/50 transition cursor-pointer"
+                  title="Account Details"
+                >
+                  {user?.role === "admin" ? (
+                    <Shield className="w-3.5 h-3.5 text-purple-400" />
+                  ) : (
+                    <User className="w-3.5 h-3.5 text-blue-400" />
+                  )}
+                  <span className="max-w-[70px] sm:max-w-[120px] truncate text-[11px] sm:text-xs font-medium">
+                    {user?.name || user?.email}
+                  </span>
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="p-1.5 text-slate-400 hover:text-red-400 rounded-lg hover:bg-slate-800 transition cursor-pointer"
+                  title="Sign Out"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
             {/* User Guide Interactive Button */}
             <button
               onClick={() => setIsAboutOpen(true)}
@@ -432,10 +606,13 @@ export default function App() {
             >
               <span className={`w-2 h-2 rounded-full flex-shrink-0 ${healthStatus?.status === "healthy" ? "bg-emerald-400" : "bg-amber-400"}`} />
               <BookOpen className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
-              <span className="font-semibold">User Guide</span>
+              <span className="font-semibold hidden sm:inline">User Guide</span>
             </button>
           </div>
         </header>
+
+        {/* Guest-Mode Banner (Phase 4) */}
+        {user?.is_guest && <GuestBanner onOpenAuth={() => setIsAuthOpen(true)} />}
 
         {/* Scrollable Chat Area */}
         <div
@@ -553,6 +730,20 @@ export default function App() {
 
       {/* About SagaTraveller Modal */}
       <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
+
+      {/* Auth Modal (Phase 4) */}
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+        onAuthSuccess={handleAuthSuccess}
+      />
+
+      {/* Admin Knowledge & Ingestion Modal (Phase 4) */}
+      <AdminIngestionModal
+        isOpen={isAdminOpen}
+        onClose={() => setIsAdminOpen(false)}
+        user={user}
+      />
     </div>
   );
 }

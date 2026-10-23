@@ -638,3 +638,10 @@ We executed full end-to-end benchmark runs (`test_run.py`) evaluating both a 5-d
    - Click **`+ New`** ➔ **`File upload`** ➔ select `SOLVED_PROBLEMS_DOCUMENTATION.md`.
    - Double click the uploaded file in Google Drive and select **`Open with Google Docs`**.
 
+---
+
+### shared local storage issues
+The application stores data in browser localStorage using a single, global storage key shared by authenticated users and guest sessions. Because the data are not isolated by user identity or guest session, previously saved notes can appear in another user's session. The application also fails to properly reset the notes state during logout, causing private data to persist across sessions.
+
+solution: Prevent Data Leakage Between Users and Guest Sessions
+Implement user-specific and session-specific storage keys to ensure that each authenticated user and guest session can access only their own data. Load data according to the current user's identity or guest session ID, reset the data state during logout, and clear guest data when the guest session ends. Remove the legacy shared storage key to prevent previously stored data from appearing in new sessions.

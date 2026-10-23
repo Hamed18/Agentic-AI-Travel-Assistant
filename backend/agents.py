@@ -200,6 +200,15 @@ Here are examples of what you can ask:
             "llm_calls": state.get("llm_calls", 0) + 1,
         }
 
+    episodic_ctx = state.get("episodic_context", "")
+    tenant_docs_ctx = state.get("tenant_docs_context", "")
+
+    context_prefix = ""
+    if episodic_ctx:
+        context_prefix += f"{episodic_ctx}\n\n"
+    if tenant_docs_ctx:
+        context_prefix += f"### Ingested Traveler Knowledge & Travel Policy Documents:\n{tenant_docs_ctx}\n\n"
+
     # 2. Fast Intent Classification & Selective Routing via _fast_llm
     classifier_prompt = f"""You are the intelligent intent classifier for SagaTraveller, a real-time AI travel concierge.
 Analyze the user query and classify its intent into EXACTLY ONE of the following categories:
@@ -218,7 +227,7 @@ Return strict JSON only (no markdown, no backticks):
   "reasoning": "brief explanation"
 }}
 
-User query:
+{context_prefix}User query:
 {query}
 """
 
@@ -796,6 +805,14 @@ Provide 4-5 actionable tips and a numbered booking checklist.
 """
 
 
+    episodic_ctx = state.get("episodic_context", "")
+    tenant_docs_ctx = state.get("tenant_docs_context", "")
+    extra_knowledge_block = ""
+    if episodic_ctx:
+        extra_knowledge_block += f"\n\n{episodic_ctx}\n"
+    if tenant_docs_ctx:
+        extra_knowledge_block += f"\n\n### Ingested Tenant Knowledge & Policies:\n{tenant_docs_ctx}\n"
+
     # If there is an existing draft itinerary in state, use it as the PRIMARY GROUND TRUTH
     if current_draft and human_fb and not state.get("approved", False) and not _is_vague_or_affirming_feedback(human_fb):
         prompt = f"""
@@ -806,7 +823,7 @@ PRIMARY GROUND TRUTH (CURRENT DRAFT ITINERARY TO MODIFY):
 
 USER REVISION INSTRUCTIONS (HIGHEST PRIORITY):
 "{human_fb}"
-
+{extra_knowledge_block}
 STRICT REVISION & SYNCHRONIZATION RULES:
 1. BASELINE DOCUMENT: Treat the CURRENT DRAFT ITINERARY above as your absolute ground truth baseline. Apply the user's revision instructions directly to this baseline.
 2. DO NOT REVERT: Do NOT revert to any earlier trip duration, number of days, or outdated items from initial queries unless the user explicitly asks you to.
@@ -845,7 +862,7 @@ Weather results:
 
 Budget results:
 {state.get('budget_results', '')}
-
+{extra_knowledge_block}
 Make the output structured, practical, and ready for human review.
 Format all estimated costs and budgets in USD ($) by default, or the currency specifically requested by the user.
 Ensure title, overview duration, daily schedule, and total estimated cost calculation are ALL 100% consistent with each other.
