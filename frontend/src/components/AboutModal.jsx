@@ -200,7 +200,7 @@ export default function AboutModal({ isOpen, onClose }) {
           <span className="text-[11px] text-slate-400">
             Created by{" "}
             <a
-              href="https://www.linkedin.com/in/devhamed/"
+              href="https://hamedhasan.vercel.app/"
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-400 hover:text-blue-300 font-semibold underline underline-offset-2"

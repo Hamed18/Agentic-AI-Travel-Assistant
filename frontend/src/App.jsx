@@ -716,7 +716,7 @@ export default function App() {
             <div className="text-center mt-1 sm:mt-1.5 text-[10px] text-slate-500">
               Developed by{" "}
               <a
-                href="https://www.linkedin.com/in/devhamed/"
+                href="https://hamedhasan.vercel.app/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-medium text-blue-400 hover:text-blue-300 underline underline-offset-2 transition-colors"
