@@ -293,6 +293,22 @@ class TravelPlanPDF(FPDF):
         self.font_family_name = "Helvetica"
         self._setup_fonts()
 
+    def set_font(self, family=None, style="", size=0):
+        """Robust font setter with graceful style degradation."""
+        target_family = family or self.font_family_name
+        try:
+            super().set_font(target_family, style=style, size=size)
+        except Exception:
+            try:
+                # Try regular style if bold/italic variant is not registered
+                super().set_font(target_family, style="", size=size)
+            except Exception:
+                # Fallback to built-in Helvetica
+                try:
+                    super().set_font("Helvetica", style=style if style in ("", "B", "I") else "", size=size)
+                except Exception:
+                    super().set_font("Helvetica", style="", size=size)
+
     def _setup_fonts(self):
         candidates = [
             (
@@ -320,10 +336,10 @@ class TravelPlanPDF(FPDF):
             if os.path.exists(reg):
                 try:
                     self.add_font("CustomSans", style="",  fname=reg)
-                    if os.path.exists(bold):
-                        self.add_font("CustomSans", style="B", fname=bold)
-                    if os.path.exists(italic):
-                        self.add_font("CustomSans", style="I", fname=italic)
+                    bold_file = bold if (bold and os.path.exists(bold)) else reg
+                    self.add_font("CustomSans", style="B", fname=bold_file)
+                    italic_file = italic if (italic and os.path.exists(italic)) else reg
+                    self.add_font("CustomSans", style="I", fname=italic_file)
                     self.font_family_name = "CustomSans"
                     break
                 except Exception:
