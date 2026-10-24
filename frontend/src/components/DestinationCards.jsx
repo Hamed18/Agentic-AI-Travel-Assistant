@@ -30,15 +30,15 @@ export default function DestinationCards({ onSelectPrompt }) {
   ];
 
   return (
-    <div className="my-4 sm:my-6">
-      <div className="flex flex-wrap items-center justify-between gap-1 mb-3">
+    <div className="my-2 sm:my-3">
+      <div className="flex flex-wrap items-center justify-between gap-1 mb-2">
         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
           Featured Destinations (Quick Start)
         </h3>
         <span className="text-[10px] sm:text-[11px] text-blue-400 font-medium">Tap any card to launch</span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
         {destinations.map((d, i) => (
           <div
             key={i}
@@ -46,7 +46,7 @@ export default function DestinationCards({ onSelectPrompt }) {
             className="group relative bg-[#131b2e] border border-[#1e293b] hover:border-blue-500/50 rounded-2xl overflow-hidden cursor-pointer shadow-lg hover:shadow-blue-500/10 transition-all duration-300 active:scale-[0.98]"
           >
             {/* Image Header with Gradient Overlay */}
-            <div className="h-28 sm:h-32 w-full relative overflow-hidden">
+            <div className="h-20 sm:h-24 md:h-28 w-full relative overflow-hidden">
               <img
                 src={d.img}
                 alt={d.city}
@@ -54,14 +54,14 @@ export default function DestinationCards({ onSelectPrompt }) {
                 loading="lazy"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[#131b2e] via-transparent to-black/30" />
-              <span className="absolute top-2.5 right-2.5 bg-black/60 backdrop-blur-md text-[10px] text-blue-300 font-semibold px-2 py-0.5 rounded-full border border-white/10">
+              <span className="absolute top-2 right-2 bg-black/60 backdrop-blur-md text-[10px] text-blue-300 font-semibold px-2 py-0.5 rounded-full border border-white/10">
                 {d.tag}
               </span>
             </div>
 
             {/* Content Body */}
-            <div className="p-3 sm:p-3.5">
-              <div className="flex items-center gap-1.5 text-white font-bold text-xs sm:text-sm mb-1">
+            <div className="p-2.5 sm:p-3">
+              <div className="flex items-center gap-1.5 text-white font-bold text-xs sm:text-sm mb-0.5">
                 <MapPin className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
                 <span className="truncate">{d.city}</span>
               </div>
@@ -69,7 +69,7 @@ export default function DestinationCards({ onSelectPrompt }) {
                 {d.query}
               </p>
 
-              <div className="mt-2.5 pt-2 border-t border-[#1e293b] flex items-center justify-between text-[11px] font-semibold text-blue-400 group-hover:text-blue-300">
+              <div className="mt-2 pt-1.5 border-t border-[#1e293b] flex items-center justify-between text-[11px] font-semibold text-blue-400 group-hover:text-blue-300">
                 <span>Start Planning</span>
                 <ArrowRight className="w-3.5 h-3.5 transform group-hover:translate-x-1 transition-transform" />
               </div>
