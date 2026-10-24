@@ -11,7 +11,7 @@ with psycopg.connect(DATABASE_URL) as conn:
         cur.execute("""
             SELECT column_name, data_type 
             FROM information_schema.columns 
-            WHERE table_name = 'users';
+            WHERE table_name = 'user_profiles';
         """)
         cols = cur.fetchall()
-        print("Existing columns in users table:", cols)
+        print("Existing columns in user_profiles table:", cols)

@@ -202,8 +202,11 @@ Here are examples of what you can ask:
 
     episodic_ctx = state.get("episodic_context", "")
     tenant_docs_ctx = state.get("tenant_docs_context", "")
+    user_prof_ctx = state.get("user_profile_context", "")
 
     context_prefix = ""
+    if user_prof_ctx:
+        context_prefix += f"{user_prof_ctx}\n\n"
     if episodic_ctx:
         context_prefix += f"{episodic_ctx}\n\n"
     if tenant_docs_ctx:
@@ -807,7 +810,10 @@ Provide 4-5 actionable tips and a numbered booking checklist.
 
     episodic_ctx = state.get("episodic_context", "")
     tenant_docs_ctx = state.get("tenant_docs_context", "")
+    user_prof_ctx = state.get("user_profile_context", "")
     extra_knowledge_block = ""
+    if user_prof_ctx:
+        extra_knowledge_block += f"\n\n{user_prof_ctx}\n"
     if episodic_ctx:
         extra_knowledge_block += f"\n\n{episodic_ctx}\n"
     if tenant_docs_ctx:

@@ -10,6 +10,7 @@ class TravelState(TypedDict, total=False):
 
     episodic_context: str
     tenant_docs_context: str
+    user_profile_context: str
 
     trip_constraints: dict[str, Any]
     selected_agents: list[str]

@@ -186,6 +186,42 @@ export async function getMemoryHistory(limit = 10) {
   return await res.json();
 }
 
+// ── User Profile & Consolidation (Phase 6) ──────────────────────────────────
+export async function getProfile() {
+  const res = await fetch(`${API_BASE_URL}/api/profile`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error("Failed to fetch user profile");
+  return await res.json();
+}
+
+export async function consolidateProfile() {
+  const res = await fetch(`${API_BASE_URL}/api/profile/consolidate`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error("Failed to trigger profile consolidation");
+  return await res.json();
+}
+
+// ── TTL Reaper (Phase 5) ────────────────────────────────────────────────────
+export async function runReaper(maxAgeHours = 2.0) {
+  const res = await fetch(`${API_BASE_URL}/api/admin/reaper/run?max_age_hours=${maxAgeHours}`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error("Failed to execute TTL reaper");
+  return await res.json();
+}
+
+export async function getReaperStatus() {
+  const res = await fetch(`${API_BASE_URL}/api/admin/reaper/status`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error("Failed to fetch TTL reaper status");
+  return await res.json();
+}
+
 /**
  * Checks backend health and database connectivity
  */

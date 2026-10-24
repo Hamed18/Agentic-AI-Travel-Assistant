@@ -526,7 +526,7 @@ with st.sidebar:
     st.markdown(
         """
         <div style='font-size:0.75rem;color:#64748b;margin-top:0.8rem;line-height:1.4;'>
-            Developed by <a href="https://hamedhasan.vercel.app/" target="_blank" style="color:#60a5fa;text-decoration:none;font-weight:600;">Hamed Hasan</a><br>
+            Developed by <a href="https://www.linkedin.com/in/devhamed/" target="_blank" style="color:#60a5fa;text-decoration:none;font-weight:600;">Hamed Hasan</a><br>
             Powered by LangGraph + Nemotron + MCP
         </div>
         """,
@@ -836,7 +836,7 @@ if st.session_state.get("scroll_to_generation") and st.session_state.get("chat_h
 st.markdown(
     """
     <div class="bottom-fixed-footer">
-        Developed by <a href="https://hamedhasan.vercel.app/" target="_blank">Hamed Hasan</a>
+        Developed by <a href="https://www.linkedin.com/in/devhamed/" target="_blank">Hamed Hasan</a>
         &nbsp;·&nbsp; Powered by LangGraph, Nemotron &amp; MCP
     </div>
     """,

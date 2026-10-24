@@ -75,8 +75,31 @@ def init_tables():
             CREATE INDEX IF NOT EXISTS idx_episodic_created_at ON episodic_memory(created_at DESC);
             """)
 
+            # 4. User Profiles table (Phase 6 Consolidation)
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS user_profiles (
+                owner_id VARCHAR(64) PRIMARY KEY,
+                profile_summary TEXT,
+                summary TEXT,
+                interests TEXT,
+                travel_preferences JSONB DEFAULT '{}'::jsonb,
+                source_doc_count INT DEFAULT 0,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+            ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS profile_summary TEXT;
+            ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS summary TEXT;
+            ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS interests TEXT;
+            ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS travel_preferences JSONB DEFAULT '{}'::jsonb;
+            ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS source_doc_count INT DEFAULT 0;
+            ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+            
+            UPDATE user_profiles SET profile_summary = summary WHERE profile_summary IS NULL AND summary IS NOT NULL;
+
+            CREATE INDEX IF NOT EXISTS idx_user_profiles_owner_id ON user_profiles(owner_id);
+            """)
+
             conn.commit()
-            print("Successfully migrated and initialized all Neon DB tables: users, tenant_documents, episodic_memory.")
+            print("Successfully migrated and initialized all Neon DB tables: users, tenant_documents, episodic_memory, user_profiles.")
 
 if __name__ == "__main__":
     init_tables()

@@ -68,6 +68,22 @@ from memory_service import (
     format_memory_context_for_llm,
 )
 
+# TTL Reaper (P5)
+from reaper_service import (
+    purge_expired_guest_data,
+    get_reaper_stats,
+    start_reaper_background_task,
+    stop_reaper_background_task,
+)
+
+# Profile Consolidation (P6)
+from consolidation_service import (
+    trigger_profile_consolidation,
+    get_user_profile,
+    format_profile_for_llm,
+    summarize_and_consolidate,
+)
+
 # Configure root logger
 logging.basicConfig(
     level=logging.INFO,
@@ -149,6 +165,8 @@ async def root():
             "P2: Multi-Tenant Vector & File Isolation",
             "P3: Episodic Memory in Neon PostgreSQL",
             "P4: Admin Ingestion Interface",
+            "P5: Automated 2-Hour TTL Guest Reaper",
+            "P6: Ingestion Summarizer & Profile Consolidation",
         ],
         "tier": "Distributed (Groq LPU + Google Gemini Fallback)",
     }
@@ -291,6 +309,9 @@ async def upload_document_endpoint(
         file_size=saved_info["size_bytes"],
     )
 
+    # Phase 6: Asynchronously synthesize and consolidate user profile
+    trigger_profile_consolidation(context.tenant_id)
+
     return {
         "status": "success",
         "filename": filename,
@@ -318,6 +339,9 @@ async def ingest_text_endpoint(
         file_path=saved_info["path"],
         file_size=len(data),
     )
+
+    # Phase 6: Asynchronously synthesize and consolidate user profile
+    trigger_profile_consolidation(context.tenant_id)
 
     return {
         "status": "success",
@@ -413,6 +437,9 @@ async def stream_chat(
     # P3: Retrieve episodic memory history context
     episodic_context = format_memory_context_for_llm(owner_id, limit=4)
 
+    # P6: Retrieve consolidated user profile context (cached, <2ms)
+    user_profile_context = format_profile_for_llm(owner_id)
+
     # P2: Multi-tenant vector search for relevant uploaded tenant documents
     matched_docs = search_tenant_documents(owner_id, query, top_k=3, min_score=0.10)
     tenant_docs_str = ""
@@ -428,6 +455,7 @@ async def stream_chat(
         "owner_id": owner_id,
         "episodic_context": episodic_context,
         "tenant_docs_context": tenant_docs_str,
+        "user_profile_context": user_profile_context,
         "messages": [],
         "flight_results": "",
         "hotel_results": "",
@@ -682,9 +710,66 @@ async def generate_pdf_endpoint(req: PDFRequest):
         raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {str(e)}")
 
 
-# ── App Shutdown ──────────────────────────────────────────────────────────────
+# ── User Profile & Consolidation Endpoints (Phase 6) ──────────────────────────
+@app.get("/api/profile")
+async def get_profile_endpoint(context: SecurityContext = Depends(get_security_context)):
+    """Fetch synthesized traveler profile for current user/tenant."""
+    profile = get_user_profile(context.tenant_id)
+    return {
+        "owner_id": context.tenant_id,
+        "has_profile": profile is not None,
+        "profile": profile,
+    }
+
+
+@app.post("/api/profile/consolidate")
+async def trigger_consolidation_endpoint(
+    context: SecurityContext = Depends(get_security_context)
+):
+    """Manually trigger profile consolidation from ingested documents."""
+    res = await summarize_and_consolidate(context.tenant_id)
+    return {
+        "status": "success" if res else "no_documents",
+        "profile": res,
+        "owner_id": context.tenant_id,
+    }
+
+
+# ── TTL Reaper Endpoints (Phase 5) ─────────────────────────────────────────────
+@app.post("/api/admin/reaper/run")
+async def trigger_reaper_endpoint(
+    max_age_hours: float = 2.0,
+    context: SecurityContext = Depends(require_admin)
+):
+    """Admin-only manual execution of the TTL Reaper."""
+    stats = purge_expired_guest_data(max_age_hours=max_age_hours)
+    return {
+        "status": "completed",
+        "details": stats,
+    }
+
+
+@app.get("/api/admin/reaper/status")
+async def reaper_status_endpoint(
+    context: SecurityContext = Depends(require_admin)
+):
+    """Admin-only telemetry of the TTL Reaper background worker."""
+    return {
+        "reaper_telemetry": get_reaper_stats(),
+    }
+
+
+# ── Lifecycle Events ──────────────────────────────────────────────────────────
+@app.on_event("startup")
+async def on_startup():
+    logger.info("Initializing automated TTL Reaper background worker...")
+    start_reaper_background_task(interval_seconds=1800, max_age_hours=2.0)
+
+
 @app.on_event("shutdown")
 def on_shutdown():
+    logger.info("Stopping TTL Reaper background worker...")
+    stop_reaper_background_task()
     logger.info("Flushing pending observability events before shutdown...")
     flush_observability()
 
