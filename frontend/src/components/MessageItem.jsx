@@ -1,21 +1,70 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Download, FileText, CheckCircle2, User, Bot, Loader2, Sparkles } from "lucide-react";
+import {
+  Download,
+  FileText,
+  CheckCircle2,
+  User,
+  Bot,
+  Loader2,
+  Sparkles,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 import { downloadPdf } from "../api";
+import {
+  speakText,
+  stopSpeaking,
+  isSpeechSynthesisSupported,
+} from "../services/voiceService";
 
-export default function MessageItem({ message }) {
+export default function MessageItem({
+  message,
+  isSpeaking: propIsSpeaking,
+  onToggleSpeech: propOnToggleSpeech,
+}) {
   const isUser = message.role === "user";
   const [downloading, setDownloading] = useState(false);
+  const [localIsSpeaking, setLocalIsSpeaking] = useState(false);
 
-  // Detect if message contains a complete itinerary eligible for publication PDF
+  const isSpeaking = propIsSpeaking !== undefined ? propIsSpeaking : localIsSpeaking;
+
+  useEffect(() => {
+    return () => {
+      if (localIsSpeaking) {
+        stopSpeaking();
+      }
+    };
+  }, [localIsSpeaking]);
+
+  const handleToggleSpeech = () => {
+    if (propOnToggleSpeech) {
+      propOnToggleSpeech();
+      return;
+    }
+
+    if (localIsSpeaking) {
+      stopSpeaking();
+      setLocalIsSpeaking(false);
+      return;
+    }
+    setLocalIsSpeaking(true);
+    speakText(message.content, {
+      onEnd: () => setLocalIsSpeaking(false),
+      onError: () => setLocalIsSpeaking(false),
+    });
+  };
+
+  // Detect if message contains an itinerary eligible for publication PDF
   const hasItinerary =
     !isUser &&
-    message.type === "final_plan" &&
     message.content &&
-    (message.content.includes("## 1️⃣ FLIGHT OPTIONS") ||
-      message.content.includes("## FLIGHT OPTIONS") ||
-      message.content.includes("## OVERALL BUDGET SUMMARY") ||
+    (message.type === "final_plan" ||
+      message.type === "draft_plan" ||
+      message.content.includes("FLIGHT") ||
+      message.content.includes("HOTEL") ||
+      message.content.includes("BUDGET") ||
       message.content.includes("Day 1") ||
       message.content.includes("Day 2"));
 
@@ -102,31 +151,69 @@ export default function MessageItem({ message }) {
           </div>
         )}
 
-        {/* PDF Download Action Bar */}
-        {hasItinerary && (
-          <div className="mt-5 pt-3.5 border-t border-[#1e293b] flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-            <div className="flex items-center gap-2 text-slate-400 text-[11px]">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-              <span>Complete tables, schedule &amp; budget donut chart included</span>
+        {/* Assistant Action Bar: Read Aloud & PDF Download */}
+        {!isUser && (isSpeechSynthesisSupported() || hasItinerary) && (
+          <div className="mt-4 pt-3 border-t border-[#1e293b] flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+            <div className="flex flex-wrap items-center gap-2.5">
+              {isSpeechSynthesisSupported() && (
+                <button
+                  type="button"
+                  onClick={handleToggleSpeech}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition-all text-xs font-medium cursor-pointer shadow-sm ${
+                    isSpeaking
+                      ? "bg-blue-600/20 border-blue-500/50 text-blue-300 animate-pulse"
+                      : "bg-[#0d1322] border-[#1e293b] text-slate-300 hover:text-white hover:bg-[#1a2540]"
+                  }`}
+                  title={isSpeaking ? "Stop voice narration" : "Listen to this response aloud"}
+                  aria-label={isSpeaking ? "Stop voice narration" : "Listen to this response aloud"}
+                >
+                  {isSpeaking ? (
+                    <>
+                      <VolumeX className="w-3.5 h-3.5 text-blue-400" />
+                      <span className="flex items-center gap-0.5 h-3 px-0.5" aria-hidden="true">
+                        <span className="w-0.5 h-2 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                        <span className="w-0.5 h-3 bg-blue-300 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                        <span className="w-0.5 h-2.5 bg-blue-400 rounded-full animate-bounce" />
+                      </span>
+                      <span>Stop Voice</span>
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Read Aloud</span>
+                    </>
+                  )}
+                </button>
+              )}
+
+              {hasItinerary && (
+                <div className="hidden sm:flex items-center gap-1.5 text-slate-400 text-[11px]">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                  <span>Verified itinerary tables &amp; budget breakdown</span>
+                </div>
+              )}
             </div>
 
-            <button
-              onClick={handleDownload}
-              disabled={downloading}
-              className="flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white font-semibold rounded-xl text-xs shadow-lg shadow-blue-500/25 transition-all active:scale-95 w-full sm:w-auto"
-            >
-              {downloading ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Compiling PDF...</span>
-                </>
-              ) : (
-                <>
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download Publication PDF</span>
-                </>
-              )}
-            </button>
+            {hasItinerary && (
+              <button
+                onClick={handleDownload}
+                disabled={downloading}
+                className="flex items-center justify-center gap-2 py-2 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white font-semibold rounded-xl text-xs shadow-md shadow-blue-500/25 transition-all active:scale-95 cursor-pointer w-full sm:w-auto"
+                title="Download this itinerary as a publication PDF"
+              >
+                {downloading ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Compiling PDF...</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download Publication PDF</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
         )}
       </div>

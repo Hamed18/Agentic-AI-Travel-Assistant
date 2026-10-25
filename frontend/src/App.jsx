@@ -24,7 +24,16 @@ import {
   LogIn,
   LogOut,
   Database,
+  Mic,
+  MicOff,
+  AlertCircle,
 } from "lucide-react";
+import {
+  startVoiceRecognition,
+  isSpeechRecognitionSupported,
+  stopSpeaking,
+  speakText,
+} from "./services/voiceService";
 
 // Remove legacy shared storage key to prevent data leakage across users & sessions
 try {
@@ -85,6 +94,67 @@ export default function App() {
   const [currentIntent, setCurrentIntent] = useState("trip_planning");
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
+
+  // Voice input state
+  const [isListening, setIsListening] = useState(false);
+  const [isProcessingVoice, setIsProcessingVoice] = useState(false);
+  const [voiceNotice, setVoiceNotice] = useState(null);
+  const [activeSpeakingIndex, setActiveSpeakingIndex] = useState(null);
+  const recognitionRef = useRef(null);
+
+  const handleVoiceToggle = () => {
+    if (isListening || isProcessingVoice) {
+      setIsListening(false);
+      setIsProcessingVoice(false);
+      setIsProcessingVoice(true);
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (_) {}
+      }
+      return;
+    }
+
+    if (!isSpeechRecognitionSupported()) {
+      setVoiceNotice("Voice input is not supported in this browser. Please use Chrome, Edge, or Safari.");
+      setTimeout(() => setVoiceNotice(null), 5000);
+      return;
+    }
+
+    setVoiceNotice(null);
+    setIsListening(true);
+    setIsProcessingVoice(false);
+    const session = startVoiceRecognition({
+      onStart: () => {
+        setIsListening(true);
+        setIsProcessingVoice(false);
+      },
+      onProcessing: () => {
+        setIsListening(false);
+      setIsProcessingVoice(false);
+        setIsProcessingVoice(true);
+      },
+      onTranscript: (transcript) => {
+        setInputQuery(transcript);
+      },
+      onError: (friendlyMsg) => {
+        setIsListening(false);
+      setIsProcessingVoice(false);
+        setIsProcessingVoice(false);
+        if (friendlyMsg) {
+          setVoiceNotice(friendlyMsg);
+          setTimeout(() => setVoiceNotice(null), 5000);
+        }
+      },
+      onEnd: () => {
+        setIsListening(false);
+      setIsProcessingVoice(false);
+        setIsProcessingVoice(false);
+      },
+    });
+
+    recognitionRef.current = session;
+  };
 
   // Initialize and verify user auth / guest session
   useEffect(() => {
@@ -238,6 +308,8 @@ export default function App() {
 
   // When switching thread, scroll to top if empty or bottom if has messages
   useEffect(() => {
+    stopSpeaking();
+    setActiveSpeakingIndex(null);
     if (chatContainerRef.current) {
       if (currentThread?.messages?.length === 0) {
         chatContainerRef.current.scrollTop = 0;
@@ -301,6 +373,17 @@ export default function App() {
   const handleSend = async (queryToSend = inputQuery) => {
     const query = (queryToSend || "").trim();
     if (!query || isStreaming) return;
+
+    stopSpeaking();
+    setActiveSpeakingIndex(null);
+
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (_) {}
+      setIsListening(false);
+      setIsProcessingVoice(false);
+    }
 
     setInputQuery("");
     setIsStreaming(true);
@@ -426,6 +509,8 @@ export default function App() {
 
   // Submit Human Approval Decision (Calls /api/chat/resume)
   const handleApprovalDecision = async ({ approved, feedback }) => {
+    stopSpeaking();
+    setActiveSpeakingIndex(null);
     setIsSubmittingApproval(true);
 
     if (!approved) {
@@ -643,7 +728,24 @@ export default function App() {
             ) : (
               <div className="space-y-1">
                 {currentThread?.messages.map((msg, i) => (
-                  <MessageItem key={i} message={msg} />
+                  <MessageItem
+                    key={i}
+                    message={msg}
+                    isSpeaking={activeSpeakingIndex === i}
+                    onToggleSpeech={() => {
+                      if (activeSpeakingIndex === i) {
+                        stopSpeaking();
+                        setActiveSpeakingIndex(null);
+                      } else {
+                        stopSpeaking();
+                        setActiveSpeakingIndex(i);
+                        speakText(msg.content, {
+                          onEnd: () => setActiveSpeakingIndex(null),
+                          onError: () => setActiveSpeakingIndex(null),
+                        });
+                      }
+                    }}
+                  />
                 ))}
               </div>
             )}
@@ -682,6 +784,34 @@ export default function App() {
         {/* Fixed Bottom Input Bar - Matches Content Max Width */}
         <div className="py-2 px-3 sm:px-6 border-t border-[#1e293b] bg-[#0d1322] flex-shrink-0 w-full z-20 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           <div className="max-w-5xl mx-auto w-full">
+            {/* Voice feedback banner / fallback notice */}
+            {voiceNotice && (
+              <div className="flex items-center gap-1.5 px-3 py-1 mb-1.5 bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] rounded-lg">
+                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 text-amber-400" />
+                <span className="truncate">{voiceNotice}</span>
+              </div>
+            )}
+            {isProcessingVoice && (
+              <div className="flex items-center justify-between gap-2 px-3 py-1.5 mb-1.5 bg-gradient-to-r from-blue-900/40 to-indigo-900/40 border border-blue-500/40 text-blue-200 text-[11px] rounded-xl shadow-md animate-in fade-in">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-3.5 h-3.5 flex-shrink-0 text-blue-400 animate-spin" />
+                  <span className="font-medium text-white">Converting speech to text... please hold a moment</span>
+                </div>
+                <span className="text-[10px] bg-blue-500/20 text-blue-300 font-mono px-2 py-0.5 rounded-full border border-blue-500/30 font-semibold">
+                  AI Transcribing
+                </span>
+              </div>
+            )}
+            {isListening && !isProcessingVoice && !voiceNotice && (
+              <div className="flex items-center justify-between gap-2 px-3 py-1.5 mb-1.5 bg-red-500/10 border border-red-500/30 text-red-300 text-[11px] rounded-xl shadow-md animate-pulse">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping flex-shrink-0" />
+                  <span className="font-medium">Listening... Speak your travel plans now (click mic when done)</span>
+                </div>
+                <span className="text-[10px] text-red-400 font-mono font-semibold">Live Mic</span>
+              </div>
+            )}
+
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -690,6 +820,9 @@ export default function App() {
               className="relative flex items-center bg-[#131b2e] border border-[#1e293b] focus-within:border-blue-500 rounded-2xl shadow-xl transition-all"
             >
               <input
+                id="trip_query"
+                name="trip_query"
+                aria-label="Plan a trip, luxury weekend, or vacation"
                 type="text"
                 value={inputQuery}
                 onChange={(e) => setInputQuery(e.target.value)}
@@ -697,22 +830,65 @@ export default function App() {
                 placeholder={
                   currentThread?.isInterrupted
                     ? "Review draft plan above..."
+                    : isProcessingVoice
+                    ? "Processing your voice... please hold"
+                    : isListening
+                    ? "Listening... speak now"
                     : "Plan a trip, luxury weekend, or vacation..."
                 }
-                className="w-full bg-transparent py-2.5 sm:py-3 pl-3.5 sm:pl-4 pr-12 sm:pr-14 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none disabled:opacity-50"
+                className="w-full bg-transparent py-2.5 sm:py-3 pl-3.5 sm:pl-4 pr-20 sm:pr-24 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none disabled:opacity-50"
               />
 
-              <button
-                type="submit"
-                disabled={!inputQuery.trim() || isStreaming || currentThread?.isInterrupted}
-                className="absolute right-1.5 sm:right-2 p-1.5 sm:p-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-30 disabled:hover:bg-blue-600 text-white rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center min-w-[32px] min-h-[32px] sm:min-w-[36px] sm:min-h-[36px]"
-              >
-                {isStreaming ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4" />
-                )}
-              </button>
+              <div className="absolute right-1.5 sm:right-2 flex items-center gap-1">
+                {/* Voice Input Microphone Button */}
+                <button
+                  type="button"
+                  onClick={handleVoiceToggle}
+                  disabled={isStreaming || currentThread?.isInterrupted}
+                  className={`p-1.5 sm:p-2 rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center min-w-[32px] min-h-[32px] sm:min-w-[36px] sm:min-h-[36px] cursor-pointer ${
+                    isProcessingVoice
+                      ? "bg-blue-600/20 text-blue-300 border border-blue-500/50 animate-pulse hover:bg-blue-600/30"
+                      : isListening
+                      ? "bg-red-500/20 text-red-400 border border-red-500/50 animate-pulse hover:bg-red-500/30"
+                      : "bg-[#1a233b] hover:bg-[#222e4d] text-slate-300 hover:text-white border border-[#1e293b]"
+                  }`}
+                  title={
+                    isProcessingVoice
+                      ? "Processing your voice... please hold"
+                      : isListening
+                      ? "Listening... click to stop and transcribe"
+                      : "Speak to SagaTraveller (Voice Input)"
+                  }
+                  aria-label={
+                    isProcessingVoice
+                      ? "Processing voice input"
+                      : isListening
+                      ? "Stop and process speech"
+                      : "Start voice input"
+                  }
+                >
+                  {isProcessingVoice ? (
+                    <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
+                  ) : isListening ? (
+                    <MicOff className="w-4 h-4 text-red-400" />
+                  ) : (
+                    <Mic className="w-4 h-4 text-slate-300" />
+                  )}
+                </button>
+
+                {/* Send Query Button */}
+                <button
+                  type="submit"
+                  disabled={!inputQuery.trim() || isStreaming || currentThread?.isInterrupted}
+                  className="p-1.5 sm:p-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-30 disabled:hover:bg-blue-600 text-white rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center min-w-[32px] min-h-[32px] sm:min-w-[36px] sm:min-h-[36px] cursor-pointer"
+                >
+                  {isStreaming ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
             </form>
 
             <div className="text-center mt-1 text-[10px] text-slate-500">
