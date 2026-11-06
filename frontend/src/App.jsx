@@ -161,16 +161,26 @@ export default function App() {
     getMe().then((me) => {
       if (me) {
         setUser(me);
-        const loaded = loadUserThreads(me);
-        setThreads(loaded);
-        setActiveThreadId(loaded[0]?.id || "default_trip");
+        setThreads((prev) => {
+          if (prev && prev.length > 0 && prev.some((t) => t.messages.length > 0)) {
+            return prev;
+          }
+          const loaded = loadUserThreads(me);
+          setActiveThreadId(loaded[0]?.id || "default_trip");
+          return loaded;
+        });
       } else {
         createGuestSession()
           .then((res) => {
             setUser(res.user);
-            const loaded = loadUserThreads(res.user);
-            setThreads(loaded);
-            setActiveThreadId(loaded[0]?.id || "default_trip");
+            setThreads((prev) => {
+              if (prev && prev.length > 0 && prev.some((t) => t.messages.length > 0)) {
+                return prev;
+              }
+              const loaded = loadUserThreads(res.user);
+              setActiveThreadId(loaded[0]?.id || "default_trip");
+              return loaded;
+            });
           })
           .catch((e) => console.warn("Guest session init error:", e));
       }
@@ -385,6 +395,13 @@ export default function App() {
       setIsProcessingVoice(false);
     }
 
+    const targetThreadId = activeThreadId;
+    const updateTargetThread = (updater) => {
+      setThreads((prev) =>
+        prev.map((t) => (t.id === targetThreadId ? updater(t) : t))
+      );
+    };
+
     setInputQuery("");
     setIsStreaming(true);
     setCurrentIntent("trip_planning");
@@ -399,7 +416,7 @@ export default function App() {
     });
 
     // Append user message & update title if first message
-    updateCurrentThread((t) => {
+    updateTargetThread((t) => {
       const isFirst = t.messages.length === 0;
       const title = isFirst ? query.substring(0, 32) + (query.length > 32 ? "..." : "") : t.title;
       return {
@@ -414,7 +431,7 @@ export default function App() {
 
     await streamChat({
       query,
-      threadId: activeThreadId,
+      threadId: targetThreadId,
       onEvent: ({ event, data }) => {
         // Handle LangGraph stage completions
         if (event === "node_complete" && data?.node) {
@@ -453,7 +470,7 @@ export default function App() {
             human_approval: "running",
           }));
 
-          updateCurrentThread((t) => ({
+          updateTargetThread((t) => ({
             ...t,
             isInterrupted: true,
             isRevision: Boolean(data.is_revision),
@@ -472,7 +489,7 @@ export default function App() {
         // Handle Backend Error Event
         if (event === "error") {
           const errMsg = data?.error || (typeof data === "string" ? data : "An error occurred while generating your plan.");
-          updateCurrentThread((t) => ({
+          updateTargetThread((t) => ({
             ...t,
             isInterrupted: false,
             messages: [
@@ -500,7 +517,7 @@ export default function App() {
           const final = data.final_response || data.itinerary;
           const isDirectChat = data.response_type === "chat" || (data.intent && data.intent !== "trip_planning");
 
-          updateCurrentThread((t) => ({
+          updateTargetThread((t) => ({
             ...t,
             isInterrupted: false,
             messages: [
@@ -523,7 +540,7 @@ export default function App() {
           ? "🔒 **Session Expired:** Your guest session has been refreshed. Please submit your trip request again."
           : `⚠️ **Connection Error:** ${errMessage}\n\n*If the backend service is waking up from idle sleep, please wait 10 seconds and try again.*`;
 
-        updateCurrentThread((t) => ({
+        updateTargetThread((t) => ({
           ...t,
           isInterrupted: false,
           messages: [
@@ -549,8 +566,15 @@ export default function App() {
     setActiveSpeakingIndex(null);
     setIsSubmittingApproval(true);
 
+    const targetThreadId = activeThreadId;
+    const updateTargetThread = (updater) => {
+      setThreads((prev) =>
+        prev.map((t) => (t.id === targetThreadId ? updater(t) : t))
+      );
+    };
+
     if (!approved) {
-      updateCurrentThread((t) => ({
+      updateTargetThread((t) => ({
         ...t,
         messages: [
           ...t.messages,
@@ -565,7 +589,7 @@ export default function App() {
     let finalResponse = "";
 
     await resumeChat({
-      threadId: activeThreadId,
+      threadId: targetThreadId,
       approved,
       feedback,
       onEvent: ({ event, data }) => {
@@ -575,7 +599,7 @@ export default function App() {
         }
 
         if (event === "interrupt") {
-          updateCurrentThread((t) => ({
+          updateTargetThread((t) => ({
             ...t,
             isInterrupted: true,
             isRevision: true,
@@ -592,7 +616,7 @@ export default function App() {
 
         if (event === "complete") {
           finalResponse = data.final_response || data.itinerary;
-          updateCurrentThread((t) => ({
+          updateTargetThread((t) => ({
             ...t,
             isInterrupted: false,
             messages: [
