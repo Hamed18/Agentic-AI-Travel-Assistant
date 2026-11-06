@@ -469,6 +469,24 @@ export default function App() {
           setIsStreaming(false);
         }
 
+        // Handle Backend Error Event
+        if (event === "error") {
+          const errMsg = data?.error || (typeof data === "string" ? data : "An error occurred while generating your plan.");
+          updateCurrentThread((t) => ({
+            ...t,
+            isInterrupted: false,
+            messages: [
+              ...t.messages,
+              {
+                role: "assistant",
+                type: "chat",
+                content: `⚠️ **Unable to complete plan:** ${errMsg}\n\n*Please verify your trip constraints and try again.*`,
+              },
+            ],
+          }));
+          setIsStreaming(false);
+        }
+
         // Handle Final Plan / Chat Completion
         if (event === "complete") {
           setActiveStages({
@@ -499,6 +517,24 @@ export default function App() {
       },
       onError: (err) => {
         console.error("Stream failed:", err);
+        const errMessage = err?.message || "Connection to travel planning engine was lost.";
+        const isAuth = errMessage.includes("401");
+        const formattedMsg = isAuth
+          ? "🔒 **Session Expired:** Your guest session has been refreshed. Please submit your trip request again."
+          : `⚠️ **Connection Error:** ${errMessage}\n\n*If the backend service is waking up from idle sleep, please wait 10 seconds and try again.*`;
+
+        updateCurrentThread((t) => ({
+          ...t,
+          isInterrupted: false,
+          messages: [
+            ...t.messages,
+            {
+              role: "assistant",
+              type: "chat",
+              content: formattedMsg,
+            },
+          ],
+        }));
         setIsStreaming(false);
       },
       onComplete: () => {
@@ -894,7 +930,7 @@ export default function App() {
             <div className="text-center mt-1 text-[10px] text-slate-500">
               Developed by{" "}
               <a
-                href="https://www.linkedin.com/in/devhamed/"
+                href="https://github.com/Hamed18"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-medium text-blue-400 hover:text-blue-300 underline underline-offset-2 transition-colors"

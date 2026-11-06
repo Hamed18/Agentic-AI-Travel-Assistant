@@ -241,11 +241,11 @@ export async function checkHealth() {
 /**
  * Streams real-time agent updates from POST /api/chat/stream using Fetch ReadableStream
  */
-export async function streamChat({ query, threadId, userId = "demo_user", onEvent, onError, onComplete }) {
+export async function streamChat({ query, threadId, userId = "demo_user", onEvent, onError, onComplete, _isRetry = false }) {
   const url = `${API_BASE_URL}/api/chat/stream`;
 
   try {
-    const response = await fetch(url, {
+    let response = await fetch(url, {
       method: "POST",
       headers: getAuthHeaders({
         "Content-Type": "application/json",
@@ -257,9 +257,26 @@ export async function streamChat({ query, threadId, userId = "demo_user", onEven
       }),
     });
 
+    // Auto-recover from expired or invalid JWT token
+    if (response.status === 401 && !_isRetry) {
+      console.warn("Received 401 from backend stream. Refreshing guest session...");
+      clearStoredAuth();
+      try {
+        await createGuestSession();
+      } catch (authErr) {
+        console.warn("Could not create fresh guest session:", authErr);
+      }
+      return streamChat({ query, threadId, userId, onEvent, onError, onComplete, _isRetry: true });
+    }
+
     if (!response.ok) {
       const errText = await response.text();
-      throw new Error(`API error (${response.status}): ${errText}`);
+      let parsedMsg = errText;
+      try {
+        const jsonErr = JSON.parse(errText);
+        parsedMsg = jsonErr.detail || jsonErr.error || errText;
+      } catch (_) {}
+      throw new Error(`API error (${response.status}): ${parsedMsg}`);
     }
 
     const reader = response.body.getReader();
