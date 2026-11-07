@@ -45,6 +45,7 @@ from auth import (
     authenticate_user,
     create_access_token,
     create_guest_session,
+    seed_demo_accounts,
     UserRegisterRequest,
     UserLoginRequest,
     TokenResponse,
@@ -762,6 +763,11 @@ async def reaper_status_endpoint(
 # ── Lifecycle Events ──────────────────────────────────────────────────────────
 @app.on_event("startup")
 async def on_startup():
+    logger.info("Seeding / ensuring demo test accounts in database...")
+    try:
+        seed_demo_accounts()
+    except Exception as e:
+        logger.warning(f"Demo account seed warning: {e}")
     logger.info("Initializing automated TTL Reaper background worker...")
     start_reaper_background_task(interval_seconds=1800, max_age_hours=2.0)
 

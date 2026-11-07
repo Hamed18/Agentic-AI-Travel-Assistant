@@ -7,7 +7,6 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [role, setRole] = useState("user"); // "user" | "admin"
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -24,12 +23,29 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         onAuthSuccess(res.user);
         onClose();
       } else {
-        const res = await registerUser({ email, password, name, role });
+        const res = await registerUser({ email, password, name, role: "user" });
         onAuthSuccess(res.user);
         onClose();
       }
     } catch (err) {
       setError(err.message || "Authentication failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDemoLogin = async (demoEmail, demoPassword) => {
+    setEmail(demoEmail);
+    setPassword(demoPassword);
+    setError("");
+    setLoading(true);
+
+    try {
+      const res = await loginUser({ email: demoEmail, password: demoPassword });
+      onAuthSuccess(res.user);
+      onClose();
+    } catch (err) {
+      setError(err.message || "Failed to log in with demo account.");
     } finally {
       setLoading(false);
     }
@@ -171,44 +187,10 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
             </div>
           </div>
 
-          {mode === "register" && (
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">
-                Account Role
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setRole("user")}
-                  className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-xs font-medium transition ${
-                    role === "user"
-                      ? "bg-blue-600/20 border-blue-500 text-blue-300"
-                      : "bg-slate-950/50 border-slate-800 text-slate-400 hover:border-slate-700"
-                  }`}
-                >
-                  <User className="w-3.5 h-3.5" />
-                  Traveler
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRole("admin")}
-                  className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-xs font-medium transition ${
-                    role === "admin"
-                      ? "bg-purple-600/20 border-purple-500 text-purple-300"
-                      : "bg-slate-950/50 border-slate-800 text-slate-400 hover:border-slate-700"
-                  }`}
-                >
-                  <Shield className="w-3.5 h-3.5" />
-                  Admin
-                </button>
-              </div>
-            </div>
-          )}
-
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 font-semibold text-sm rounded-xl text-white shadow-lg shadow-blue-500/25 transition disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 font-semibold text-sm rounded-xl text-white shadow-lg shadow-blue-500/25 transition disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
           >
             {loading ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -219,6 +201,46 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
             )}
           </button>
         </form>
+
+        {/* Demo Test Accounts for Sign In */}
+        {mode === "login" && (
+          <div className="mt-4 pt-4 border-t border-slate-800/80">
+            <div className="flex items-center justify-between mb-2.5">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Demo Test Logins (1-Click)
+              </span>
+              <span className="text-[10px] text-blue-400 font-medium">Pre-configured</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => handleDemoLogin("admin@travel.com", "admin123")}
+                disabled={loading}
+                className="flex flex-col items-start p-2.5 bg-slate-950/70 hover:bg-purple-950/30 border border-slate-800 hover:border-purple-500/50 rounded-xl transition text-left group active:scale-98 cursor-pointer disabled:opacity-50"
+              >
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-purple-300 group-hover:text-purple-200">
+                  <Shield className="w-3.5 h-3.5 text-purple-400" />
+                  Demo Admin
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 truncate w-full">admin@travel.com</span>
+                <span className="text-[9px] text-purple-400/80 font-mono mt-0.5">Role: Admin</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDemoLogin("user@travel.com", "user123")}
+                disabled={loading}
+                className="flex flex-col items-start p-2.5 bg-slate-950/70 hover:bg-blue-950/30 border border-slate-800 hover:border-blue-500/50 rounded-xl transition text-left group active:scale-98 cursor-pointer disabled:opacity-50"
+              >
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-300 group-hover:text-blue-200">
+                  <User className="w-3.5 h-3.5 text-blue-400" />
+                  Demo User
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 truncate w-full">user@travel.com</span>
+                <span className="text-[9px] text-blue-400/80 font-mono mt-0.5">Role: Traveler</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Divider */}
         <div className="relative my-6 text-center">

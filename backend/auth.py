@@ -202,6 +202,47 @@ def authenticate_user(req: UserLoginRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Login failed: {str(e)}")
 
 
+def seed_demo_accounts():
+    """Seeds or updates well-known test accounts (demo admin and demo user)."""
+    accounts = [
+        {
+            "id": "usr_demo_admin",
+            "email": "admin@travel.com",
+            "password": "admin123",
+            "name": "Demo Admin",
+            "role": "admin",
+        },
+        {
+            "id": "usr_demo_traveler",
+            "email": "user@travel.com",
+            "password": "user123",
+            "name": "Demo Traveler",
+            "role": "user",
+        },
+    ]
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                for acc in accounts:
+                    pwd_hash = hash_password(acc["password"])
+                    cur.execute(
+                        """
+                        INSERT INTO users (id, email, password_hash, name, role, tenant_id, is_guest, created_at, last_login)
+                        VALUES (%s, %s, %s, %s, %s, %s, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        ON CONFLICT (email) DO UPDATE SET
+                            password_hash = EXCLUDED.password_hash,
+                            name = EXCLUDED.name,
+                            role = EXCLUDED.role,
+                            is_guest = FALSE;
+                        """,
+                        (acc["id"], acc["email"], pwd_hash, acc["name"], acc["role"], acc["id"])
+                    )
+                conn.commit()
+        logger.info("Demo test accounts seeded successfully.")
+    except Exception as e:
+        logger.warning(f"Could not seed demo accounts: {e}")
+
+
 def create_guest_session() -> Dict[str, Any]:
     """Generates an ephemeral guest identity with 2-hour validity."""
     guest_id = f"guest_{uuid.uuid4().hex[:10]}"
